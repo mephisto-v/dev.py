@@ -158,7 +158,7 @@ async def gps(ctx):
     lat = location['location']['lat']
     lng = location['location']['lng']
     accuracy = location['accuracy']
-    await ctx.send(f"Vaše poloha je: \nLatitude: {lat}\nLongitude: {lng}\nAccuracy: {accuracy} meters")
+    await ctx.send(f"Poloha: \nLatitude: {lat}\nLongitude: {lng}\nAccuracy: {accuracy} meters")
 
 # Příkaz pro zastavení bota
 @bot.command(name='stop')
