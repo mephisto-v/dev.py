@@ -1,12 +1,9 @@
 import socket
-import ctypes
 import cv2
 import pyautogui
 import numpy as np
 import time
 
-# Hide the client window using ctypes
-ctypes.windll.user32.ShowWindow(ctypes.windll.kernel32.GetConsoleWindow(), 0)
 
 def start_client():
     # Connect to the server
