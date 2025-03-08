@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>MedusaX Streaming</title>
+</head>
+<body>
+    <h1>Streaming from Target IP: {{ target_ip }}</h1>
+    <p>Start Time: {{ start_time }}</p>
+    <p>Status: {{ status }}</p>
+    <img src="http://{{ target_ip }}:5000/stream" alt="Stream" />
+</body>
+</html>
