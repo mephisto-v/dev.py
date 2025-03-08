@@ -11,7 +11,7 @@ import os
 import threading
 
 # Define the server IP and port
-SERVER_IP = "YOUR_SERVER_IP"
+SERVER_IP = "10.0.1.33"
 SERVER_PORT = 9999
 
 # Helper function to send data to the server
