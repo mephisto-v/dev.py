@@ -99,5 +99,5 @@ class Client(QWidget):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    client = Client('0.0.0.0', 9999)
+    client = Client('10.0.1.33', 9999)
     sys.exit(app.exec_())
