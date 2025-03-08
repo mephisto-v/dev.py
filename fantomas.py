@@ -1,6 +1,5 @@
 import sys
 import socket
-import ssl
 import threading
 from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QPushButton, QListWidget, QLabel
 from PyQt5.QtCore import Qt
@@ -52,9 +51,8 @@ class TeamViewer2Server(QWidget):
             print(f"Connection from {addr} established!")
             self.client_list_widget.addItem(f"Client {addr}")
 
-            # Encrypt communication using SSL
-            secure_socket = ssl.wrap_socket(client_socket, keyfile=None, certfile="server.crt", server_side=True)
-            threading.Thread(target=self.handle_client, args=(secure_socket, addr)).start()
+            # No encryption used
+            threading.Thread(target=self.handle_client, args=(client_socket, addr)).start()
 
     def handle_client(self, client_socket, addr):
         """Handle incoming requests from the client (e.g., file management, remote shell, etc.)."""
