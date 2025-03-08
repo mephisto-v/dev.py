@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TeamViewer 2</title>
+    <style>
+        body { font-family: Arial, sans-serif; }
+        #screen, #webcam { max-width: 100%; }
+    </style>
+</head>
+<body>
+    <h1>TeamViewer 2</h1>
+
+    <div>
+        <h2>Remote Desktop Stream</h2>
+        <img id="screen" src="{{ url_for('start_stream') }}" />
+    </div>
+
+    <div>
+        <h2>Webcam Stream</h2>
+        <img id="webcam" src="{{ url_for('start_webcam') }}" />
+    </div>
+
+    <div>
+        <h2>Remote Command Shell</h2>
+        <input type="text" id="command" placeholder="Enter command" />
+        <button onclick="sendCommand()">Send Command</button>
+        <div id="result"></div>
+    </div>
+
+    <div>
+        <h2>File Manager</h2>
+        <input type="file" id="fileUpload" />
+        <button onclick="uploadFile()">Upload File</button>
+        <div id="fileList"></div>
+    </div>
+
+    <script>
+        function sendCommand() {
+            const command = document.getElementById("command").value;
+            fetch('/send_command', {
+                method: 'POST',
+                body: new URLSearchParams({ command })
+            })
+            .then(response => response.json())
+            .then(data => document.getElementById("result").textContent = data.result);
+        }
+
+        function uploadFile() {
+            const file = document.getElementById("fileUpload").files[0];
+            const formData = new FormData();
+            formData.append("file", file);
+
+            fetch('/file_upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => alert(data.success ? "File uploaded!" : "Upload failed"));
+        }
+    </script>
+</body>
+</html>
