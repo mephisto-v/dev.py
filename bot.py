@@ -2,7 +2,6 @@ import socket
 import threading
 import os
 import sys
-import pyqt5
 from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QVBoxLayout, QWidget
 from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtCore import QThread, pyqtSignal
