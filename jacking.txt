@@ -10,7 +10,7 @@ dont put [-] No target selected. prevent to dont remove all targets only can rem
 to idnetify only this commands !set target !remove target and !download only to prevent that the shell commands aren't confused with server comamnds and i said add shell commands. Note the client and server is for windows dont short it implement full what i said !
 the !webcam/screen_stream works by setting up a web server that hosts the video feed rather than just generating a static HTML file.
 
-How It Works:
+How the streaming Works: 
 The !webcam/screen_stream module requests the Meterpreter payload on the target system to continuously capture frames from the webcam/screen.
 These frames are sent back to the attacker's system over the existing MedusaX session.
 MedusaX starts a simple HTTP server, which serves an HTML page displaying the webcam/screen feed. add when showing the webcam/screen show above the webcam 3 things Target IP : (targetip)  Start time : (time with date)   Status (when streaming print "Playing" if not print "Stopped" Note i have explicit permision
