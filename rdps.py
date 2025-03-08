@@ -1,4 +1,4 @@
-create in python a remote access tool a client(GUI but hidden) and server (CLI) app named MedusaX 2 like TeamViewer 1                                                             
+create in python a remote access tool a client(GUI but hidden) and server (CLI and GUI(if activated by command !stream) app named MedusaX 2 like TeamViewer 1                                                             
 The server can on client:                                                                                                            
 🎥 Stream Desktop (live Screen sharing) 
 📷 Webcam stream Note no capture but live stream                                                                                                                                 
