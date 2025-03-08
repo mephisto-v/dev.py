@@ -11,6 +11,7 @@ import cv2
 clients = {}
 selected_client = None
 server_running = True
+client_connected = threading.Event()
 
 class StreamThread(QThread):
     image_signal = pyqtSignal(QImage)
@@ -55,6 +56,7 @@ def handle_client(client_socket, client_address):
     global selected_client
     clients[client_address[0]] = client_socket
     print(f"[+] Client connected: {client_address[0]}")
+    client_connected.set()
     while True:
         try:
             message = client_socket.recv(1024).decode()
@@ -113,6 +115,7 @@ def start_server():
 
 def prompt():
     global server_running
+    client_connected.wait()  # Wait until a client is connected
     while server_running:
         command = input("medusax > ").strip()
         if command == "exit":
