@@ -35,6 +35,16 @@ class ServerThread(threading.Thread):
     def shutdown(self):
         self.srv.shutdown()
 
+@app.route('/')
+def video_feed():
+    return Response(generate_frames(client_socket),
+                    mimetype='multipart/x-mixed-replace; boundary=frame')
+
+@app.route('/shutdown', methods=['POST'])
+def shutdown():
+    shutdown_server()
+    return 'Server shutting down...'
+
 def start_streaming(client_socket, mode):
     global streaming, flask_server
     streaming = True
@@ -42,16 +52,6 @@ def start_streaming(client_socket, mode):
     time.sleep(1)
     print(Fore.BLUE + "[ * ] Preparing player...")
     time.sleep(1)
-
-    @app.route('/')
-    def video_feed():
-        return Response(generate_frames(client_socket),
-                        mimetype='multipart/x-mixed-replace; boundary=frame')
-
-    @app.route('/shutdown', methods=['POST'])
-    def shutdown():
-        shutdown_server()
-        return 'Server shutting down...'
 
     print(Fore.BLUE + f"[ * ] Opening player at: http://localhost:5000")
     print(Fore.BLUE + "[ * ] Streaming...")
