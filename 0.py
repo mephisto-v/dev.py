@@ -14,6 +14,7 @@ app = Flask(__name__)
 clients = {}
 server_thread = None
 flask_thread = None
+shutdown_flag = threading.Event()
 
 def start_streaming(client_socket, mode):
     global flask_thread
@@ -58,7 +59,7 @@ def handle_client(client_socket, addr):
         print(Fore.YELLOW + f"[ * ] Command '{command}' sent to client.")
         client_socket.send(command.encode('utf-8'))
 
-        if command == "/k":
+        if command == "k":
             print(Fore.RED + "[ * ] Kill switch activated. Stopping Flask server...")
             shutdown_flask_server()
             continue
@@ -122,11 +123,16 @@ def handle_client(client_socket, addr):
         client_socket.send(command.encode('utf-8'))
 
 def shutdown_flask_server():
-    func = request.environ.get('werkzeug.server.shutdown')
-    if func is not None:
-        func()
-    else:
-        print(Fore.RED + "[ * ] Unable to shut down the Flask server.")
+    shutdown_flag.set()
+
+@app.before_first_request
+def register_shutdown():
+    def shutdown():
+        shutdown_flag.wait()
+        func = request.environ.get('werkzeug.server.shutdown')
+        if func:
+            func()
+    threading.Thread(target=shutdown).start()
 
 def main():
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
