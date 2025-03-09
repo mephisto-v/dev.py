@@ -7,7 +7,7 @@ import time
 import os
 
 # Global Variables
-server_ip = '10.01.33'  # Example, replace with the server's IP address
+server_ip = '10.0.1.33'  # Example, replace with the server's IP address
 server_port = 9999
 streaming_active = False
 client_socket = None
