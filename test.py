@@ -2,14 +2,13 @@ import socket
 import threading
 import time
 import logging
-from flask import Flask, Response, request
+from flask import Flask, Response
 from colorama import Fore, Style, init
 import cv2
 import numpy as np
 import sys
 import os
 import keyboard
-import requests
 from werkzeug.serving import make_server
 
 # Initialize colorama and logging
@@ -41,11 +40,6 @@ def video_feed():
     global client_socket_global
     return Response(generate_frames(client_socket_global),
                     mimetype='multipart/x-mixed-replace; boundary=frame')
-
-@app.route('/shutdown', methods=['POST'])
-def shutdown():
-    shutdown_server()
-    return 'Server shutting down...'
 
 def start_streaming(client_socket, mode):
     global streaming, flask_server, client_socket_global
@@ -82,29 +76,13 @@ def generate_frames(client_socket):
             break
 
 def listen_for_ctrl_x():
-    global streaming
+    global streaming, flask_server
     while streaming:
         if keyboard.is_pressed('ctrl+x'):
             print(Fore.RED + "\n[ * ] CTRL+X detected, stopping the Flask server and returning to prompt...")
-            stop_flask_server()
-
-def stop_flask_server():
-    global streaming, flask_server
-    streaming = False
-    try:
-        # Send a shutdown request to the Flask server
-        requests.post('http://localhost:5000/shutdown')
-        if flask_server:
-            flask_server.shutdown()
-    except Exception as e:
-        logging.error(f"Error stopping Flask server: {e}")
-
-def shutdown_server():
-    func = request.environ.get('werkzeug.server.shutdown')
-    if func is None:
-        logging.error('Not running with the Werkzeug Server')
-        return 'Not running with the Werkzeug Server'
-    func()
+            streaming = False
+            if flask_server:
+                flask_server.shutdown()
 
 def handle_client(client_socket, addr):
     target_ip, target_port = addr
