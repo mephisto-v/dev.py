@@ -1,31 +1,38 @@
 from flask import Flask, render_template, request
-import subprocess
-import os
+import random
+import string
 
 app = Flask(__name__)
 
-@app.route("/", methods=["GET", "POST"])
-def home():
-    obfuscated_code = ""
-    if request.method == "POST":
-        original_code = request.form["code"]
-        
-        # Write the original code to a temporary Python file
-        with open("temp_code.py", "w") as f:
-            f.write(original_code)
-        
-        # Run pyarmor command to obfuscate the code using subprocess
-        subprocess.run(["pyarmor", "obfuscate", "temp_code.py"])
-        
-        # Read the obfuscated code from the generated file
-        obfuscated_code_path = "dist/temp_code.py"
-        
-        # Check if the obfuscated file exists
-        if os.path.exists(obfuscated_code_path):
-            with open(obfuscated_code_path, "r") as f:
-                obfuscated_code = f.read()
+# Function to generate random variable names
+def generate_random_name(length=8):
+    return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
 
-    return render_template("index.html", obfuscated_code=obfuscated_code)
+# Simple Python code obfuscation function
+def obfuscate_code(code):
+    obfuscated_code = code
+    var_names = {}
+    lines = code.split('\n')
 
-if __name__ == "__main__":
+    for line in lines:
+        # Only obfuscate simple variable assignments and functions
+        if '=' in line:
+            parts = line.split('=')
+            var_name = parts[0].strip()
+            if var_name not in var_names:
+                new_var_name = generate_random_name()
+                var_names[var_name] = new_var_name
+            obfuscated_code = obfuscated_code.replace(var_name, var_names[var_name])
+
+    return obfuscated_code
+
+@app.route('/', methods=['GET', 'POST'])
+def index():
+    obfuscated_code = None
+    if request.method == 'POST':
+        code = request.form['code']
+        obfuscated_code = obfuscate_code(code)
+    return render_template('index.html', obfuscated_code=obfuscated_code)
+
+if __name__ == '__main__':
     app.run(debug=True)
