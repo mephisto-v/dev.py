@@ -53,22 +53,19 @@ def start_streaming(client_socket, mode):
     server_thread = threading.Thread(target=run_server)
     server_thread.start()
 
-    print(Fore.BLUE + f"Opening player at: http://localhost:5000/video_feed")
+    print(Fore.BLUE + f"Opening player at: http://localhost:5000")
     print(Fore.BLUE + "[ * ] Streaming...")
 
 def generate_frames(client_socket):
-    try:
-        while True:
-            data = client_socket.recv(921600)
-            if not data:
-                break
-            frame = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
-            ret, buffer = cv2.imencode('.jpg', frame)
-            frame = buffer.tobytes()
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
-    except Exception as e:
-        print(Fore.RED + f"[ * ] Error in streaming: {e}")
+    while True:
+        data = client_socket.recv(921600)
+        if not data:
+            break
+        frame = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
+        ret, buffer = cv2.imencode('.jpg', frame)
+        frame = buffer.tobytes()
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
 
 def handle_client(client_socket, addr):
     target_ip, target_port = addr
