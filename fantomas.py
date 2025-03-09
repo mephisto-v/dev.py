@@ -20,18 +20,17 @@ def on_press(key):
         if key in [keyboard.Key.ctrl_l, keyboard.Key.ctrl_r]:
             ctrl_pressed = True  
             print(Fore.YELLOW + "CTRL pressed!")
-        elif key.char == 'p' and ctrl_pressed:  
-            print(Fore.RED + "[ * ] CTRL+P detected! Stopping server...")
+            print(Fore.RED + "[ * ] CTRL detected! Stopping server...")
             stop_server()
-            return False  
+            return False  # To stop the listener after CTRL is pressed
     except AttributeError:
         pass
-
 
 def on_release(key):
     global ctrl_pressed
     if key in [keyboard.Key.ctrl_l, keyboard.Key.ctrl_r]:
         ctrl_pressed = False  
+
 
 def listen_for_ctrl_p():
     with keyboard.Listener(on_press=on_press, on_release=on_release) as listener:
