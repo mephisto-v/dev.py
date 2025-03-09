@@ -2,7 +2,7 @@ import socket
 import threading
 import time
 import subprocess
-from flask import Flask, Response, render_template_string, request
+from flask import Flask, Response, request
 from colorama import Fore, Style, init
 import cv2
 import numpy as np
@@ -36,19 +36,6 @@ def listen_for_ctrl_p():
     with keyboard.Listener(on_press=on_press, on_release=on_release) as listener:
         listener.join()
 
-html_template = """
-<!DOCTYPE html>
-<html>
-<head>
-    <title>{{title}}</title>
-</head>
-<body>
-    <h1>{{title}}</h1>
-    <img src="{{url}}" width="640" height="480">
-</body>
-</html>
-"""
-
 def start_streaming(client_socket, mode):
     print(Fore.BLUE + "[ * ] Starting...")
     time.sleep(1)
@@ -60,10 +47,6 @@ def start_streaming(client_socket, mode):
         return Response(generate_frames(client_socket),
                         mimetype='multipart/x-mixed-replace; boundary=frame')
 
-    @app.route('/')
-    def index():
-        return render_template_string(html_template, title=mode + " Stream", url='/video_feed')
-
     def run_server():
         app.run(host='0.0.0.0', port=5000, use_reloader=False)
 
@@ -71,7 +54,7 @@ def start_streaming(client_socket, mode):
     server_thread = threading.Thread(target=run_server)
     server_thread.start()
 
-    print(Fore.BLUE + f"Opening player at: http://localhost:5000")
+    print(Fore.BLUE + f"Opening player at: http://localhost:5000/video_feed")
     print(Fore.BLUE + "[ * ] Streaming...")
 
 def generate_frames(client_socket):
