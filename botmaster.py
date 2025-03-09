@@ -6,6 +6,8 @@ from colorama import Fore, Style, init
 import cv2
 import numpy as np
 from pynput import keyboard
+from werkzeug.serving import get_fast_shutdown
+
 
 init(autoreset=True)
 
@@ -136,13 +138,15 @@ def handle_client(client_socket, addr):
             continue
 
         client_socket.send(command.encode('utf-8'))
-
+        
 def stop_server():
-    print(Fore.RED + "[ * ] Server is stopping...")
+    print(Fore.RED + "[ * ] Stopping Flask server...")
+    # Tento způsob zavolá shutdown serveru ve správném kontextu
     func = request.environ.get('werkzeug.server.shutdown')
-    if func is None:
-        raise RuntimeError('Not running with the Werkzeug Server')
-    func()
+    if func:
+        func()
+    else:
+        print(Fore.RED + "[ * ] Nezdařilo se zastavit Flask server!")
 
 def main():
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
