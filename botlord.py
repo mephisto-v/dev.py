@@ -139,14 +139,16 @@ def handle_client(client_socket, addr):
 
         client_socket.send(command.encode('utf-8'))
         
+
 def stop_server():
     print(Fore.RED + "[ * ] Stopping Flask server...")
-    # Tento způsob zavolá shutdown serveru ve správném kontextu
+    # Zavolání shutdown funkce při aktivním HTTP požadavku
     func = request.environ.get('werkzeug.server.shutdown')
     if func:
         func()
     else:
         print(Fore.RED + "[ * ] Nezdařilo se zastavit Flask server!")
+
 
 def main():
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
