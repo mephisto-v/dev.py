@@ -8,6 +8,7 @@ import cv2
 import numpy as np
 from pynput import keyboard
 import sys
+import os
 
 init(autoreset=True)
 
@@ -142,12 +143,7 @@ def handle_client(client_socket, addr):
 
 def stop_server():
     print(Fore.RED + "[ * ] Stopping Flask server...")
-    # Zavolání shutdown funkce při aktivním HTTP požadavku
-    func = request.environ.get('werkzeug.server.shutdown')
-    if func:
-        func()
-    else:
-        print(Fore.RED + "[ * ] Nezdařilo se zastavit Flask server!")
+    os.kill(os.getpid(), signal.SIGINT)  # Trigger a SIGINT to properly shut down the Flask app
 
 def signal_handler(sig, frame):
     print(Fore.RED + "[ * ] CTRL+C detected! Stopping Flask server...")
