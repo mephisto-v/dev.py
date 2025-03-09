@@ -1,14 +1,12 @@
 import socket
 import threading
 import time
-import signal
 from flask import Flask, Response, request
 from colorama import Fore, Style, init
 import cv2
 import numpy as np
 import sys
 import os
-import platform
 import keyboard
 
 init(autoreset=True)
@@ -129,25 +127,7 @@ def handle_client(client_socket, addr):
 
         client_socket.send(command.encode('utf-8'))
 
-def signal_handler(sig, frame):
-    global streaming
-    if streaming:
-        print(Fore.RED + "\n[ * ] CTRL+X detected, stopping the Flask server and returning to prompt...")
-        os._exit(0)
-    else:
-        print(Fore.RED + "\n[ * ] Exiting the program...")
-        sys.exit(0)
-
 def main():
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
-    
-    if platform.system() != "Windows":
-        signal.signal(signal.SIGQUIT, signal_handler)
-    
-    # Custom signal handler for CTRL+X
-    signal.signal(signal.SIGTSTP, signal_handler)
-
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.bind(('0.0.0.0', 9999))
     server_socket.listen(5)
