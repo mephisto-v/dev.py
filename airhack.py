@@ -9,6 +9,7 @@ import numpy as np
 import sys
 import os
 import platform
+import keyboard
 
 init(autoreset=True)
 
@@ -36,6 +37,9 @@ def start_streaming(client_socket, mode):
     # Run the Flask app in a separate thread to handle the streaming
     threading.Thread(target=lambda: app.run(host='0.0.0.0', port=5000, use_reloader=False)).start()
 
+    # Start a thread to listen for CTRL+X key combination
+    threading.Thread(target=listen_for_ctrl_x).start()
+
 def generate_frames(client_socket):
     while True:
         data = client_socket.recv(921600)
@@ -46,6 +50,13 @@ def generate_frames(client_socket):
         frame = buffer.tobytes()
         yield (b'--frame\r\n'
                b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+
+def listen_for_ctrl_x():
+    global streaming
+    while streaming:
+        if keyboard.is_pressed('ctrl+x'):
+            print(Fore.RED + "\n[ * ] CTRL+X detected, stopping the Flask server and returning to prompt...")
+            os._exit(0)
 
 def handle_client(client_socket, addr):
     target_ip, target_port = addr
