@@ -19,12 +19,14 @@ def on_press(key):
     try:
         if key in [keyboard.Key.ctrl_l, keyboard.Key.ctrl_r]:
             ctrl_pressed = True  
+            print(Fore.YELLOW + "CTRL pressed!")
         elif key.char == 'p' and ctrl_pressed:  
             print(Fore.RED + "[ * ] CTRL+P detected! Stopping server...")
             stop_server()
             return False  
     except AttributeError:
         pass
+
 
 def on_release(key):
     global ctrl_pressed
