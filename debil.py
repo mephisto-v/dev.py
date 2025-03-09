@@ -21,6 +21,7 @@ clients = {}
 server_thread = None
 streaming = False  # To track the streaming status
 flask_server = None
+client_socket_global = None  # Define a global variable for client_socket
 
 class ServerThread(threading.Thread):
     def __init__(self, app):
@@ -37,7 +38,8 @@ class ServerThread(threading.Thread):
 
 @app.route('/')
 def video_feed():
-    return Response(generate_frames(client_socket),
+    global client_socket_global
+    return Response(generate_frames(client_socket_global),
                     mimetype='multipart/x-mixed-replace; boundary=frame')
 
 @app.route('/shutdown', methods=['POST'])
@@ -46,8 +48,9 @@ def shutdown():
     return 'Server shutting down...'
 
 def start_streaming(client_socket, mode):
-    global streaming, flask_server
+    global streaming, flask_server, client_socket_global
     streaming = True
+    client_socket_global = client_socket  # Assign the client_socket to the global variable
     print(Fore.BLUE + "[ * ] Starting...")
     time.sleep(1)
     print(Fore.BLUE + "[ * ] Preparing player...")
