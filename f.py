@@ -46,9 +46,6 @@ def start_streaming(client_socket, mode, delay=0):
     streaming = True
     client_socket_global = client_socket  # Assign the client_socket to the global variable
     print(Fore.BLUE + "[ * ] Starting...")
-    if delay > 0:
-        print(Fore.BLUE + f"[ * ] Delaying for {delay} seconds...")
-        time.sleep(delay)
     print(Fore.BLUE + "[ * ] Preparing player...")
     time.sleep(1)
 
@@ -61,6 +58,15 @@ def start_streaming(client_socket, mode, delay=0):
 
     # Start a thread to listen for CTRL+X key combination
     threading.Thread(target=listen_for_ctrl_x).start()
+
+    # Stop streaming after delay
+    if delay > 0:
+        threading.Thread(target=stop_streaming_after_delay, args=(delay,)).start()
+
+def stop_streaming_after_delay(delay):
+    time.sleep(delay)
+    print(Fore.RED + f"\n[ * ] Stopping streaming after {delay} seconds...")
+    stop_flask_server()
 
 def generate_frames(client_socket):
     while True:
@@ -82,9 +88,13 @@ def listen_for_ctrl_x():
     while streaming:
         if keyboard.is_pressed('ctrl+x'):
             print(Fore.RED + "\n[ * ] CTRL+X detected, stopping the Flask server and returning to prompt...")
-            streaming = False
-            if flask_server:
-                flask_server.shutdown()
+            stop_flask_server()
+
+def stop_flask_server():
+    global streaming, flask_server
+    streaming = False
+    if flask_server:
+        flask_server.shutdown()
 
 def handle_client(client_socket, addr):
     target_ip, target_port = addr
