@@ -30,6 +30,11 @@ def start_streaming(client_socket, mode):
         return Response(generate_frames(client_socket),
                         mimetype='multipart/x-mixed-replace; boundary=frame')
 
+    @app.route('/shutdown', methods=['POST'])
+    def shutdown():
+        shutdown_server()
+        return 'Server shutting down...'
+
     logging.info("Opening player at: http://localhost:5000")
     logging.info("Streaming...")
 
@@ -63,18 +68,20 @@ def listen_for_ctrl_x():
             stop_flask_server()
 
 def stop_flask_server():
-    global streaming, flask_thread
+    global streaming
     streaming = False
     try:
         # Send a shutdown request to the Flask server
-        shutdown_func = request.environ.get('werkzeug.server.shutdown')
-        if shutdown_func:
-            shutdown_func()
-        if flask_thread:
-            flask_thread.join()
+        requests.post('http://localhost:5000/shutdown')
         logging.info("Flask server stopped.")
     except Exception as e:
         logging.error(f"Error stopping Flask server: {e}")
+
+def shutdown_server():
+    func = request.environ.get('werkzeug.server.shutdown')
+    if func is None:
+        raise RuntimeError('Not running with the Werkzeug Server')
+    func()
 
 def handle_client(client_socket, addr):
     target_ip, target_port = addr
