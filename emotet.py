@@ -6,8 +6,6 @@ from colorama import Fore, Style, init
 import cv2
 import numpy as np
 from pynput import keyboard
-from werkzeug.serving import get_fast_shutdown
-
 
 init(autoreset=True)
 
