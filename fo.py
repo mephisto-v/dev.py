@@ -8,21 +8,15 @@ import cv2
 import numpy as np
 import sys
 import os
+import requests
 
 init(autoreset=True)
 
 app = Flask(__name__)
 clients = {}
 server_thread = None
-streaming_thread = None
-streaming = False
 
 def start_streaming(client_socket, mode):
-    global streaming, streaming_thread
-    
-    def run_flask():
-        app.run(host='0.0.0.0', port=5000, use_reloader=False)
-
     print(Fore.BLUE + "[ * ] Starting...")
     time.sleep(1)
     print(Fore.BLUE + "[ * ] Preparing player...")
@@ -35,10 +29,10 @@ def start_streaming(client_socket, mode):
 
     print(Fore.BLUE + f"[ * ] Opening player at: http://localhost:5000")
     print(Fore.BLUE + "[ * ] Streaming...")
-
-    streaming = True
-    streaming_thread = threading.Thread(target=run_flask)
-    streaming_thread.start()
+    
+    # Run the Flask app in a separate thread to handle the streaming
+    server_thread = threading.Thread(target=lambda: app.run(host='0.0.0.0', port=5000, use_reloader=False))
+    server_thread.start()
 
 def generate_frames(client_socket):
     while True:
@@ -120,24 +114,22 @@ def handle_client(client_socket, addr):
             print(Fore.WHITE + output)
             continue
 
+        if command == "/k":
+            shutdown_flask_server()
+            continue
+
         client_socket.send(command.encode('utf-8'))
 
-def signal_handler(sig, frame):
-    global streaming, streaming_thread
-    if streaming:
-        print(Fore.RED + "\n[ * ] Stopping Flask web server...")
-        # Stopping Flask server by terminating the Flask thread
-        terminate_thread(streaming_thread)
-        streaming = False
-        print(Fore.RED + "[ * ] Flask web server stopped. Returning to command prompt.")
-    else:
-        print(Fore.RED + "\n[ * ] Stopping server...")
-        os._exit(0)
+def shutdown_flask_server():
+    print(Fore.RED + "[ * ] Shutting down Flask server...")
+    func = request.environ.get('werkzeug.server.shutdown')
+    if func is None:
+        raise RuntimeError('Not running with the Werkzeug Server')
+    func()
 
-def terminate_thread(thread):
-    if thread.is_alive():
-        import ctypes
-        ctypes.pythonapi.PyThreadState_SetAsyncExc(ctypes.c_long(thread.ident), ctypes.py_object(SystemExit))
+def signal_handler(sig, frame):
+    print(Fore.RED + "\n[ * ] Shutting down server...")
+    sys.exit(0)
 
 def main():
     signal.signal(signal.SIGINT, signal_handler)
