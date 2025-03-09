@@ -11,6 +11,8 @@ init(autoreset=True)
 
 app = Flask(__name__)
 ctrl_pressed = False
+clients = {}
+server_thread = None
 
 def on_press(key):
     global ctrl_pressed
