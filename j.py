@@ -23,10 +23,13 @@ def start_streaming(client_socket, mode):
         return Response(generate_frames(client_socket),
                         mimetype='multipart/x-mixed-replace; boundary=frame')
 
-    @app.route('/k', methods=['POST'])
+    @app.route('/k', methods=['POST', 'GET'])
     def kill_server():
-        shutdown_server()
-        return 'Server shutting down...'
+        if request.method == 'POST':
+            shutdown_server()
+            return 'Server shutting down...'
+        else:
+            return 'Send a POST request to shut down the server.'
 
     print(Fore.BLUE + f"[ * ] Opening player at: http://localhost:5000")
     print(Fore.BLUE + "[ * ] Streaming...")
