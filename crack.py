@@ -15,9 +15,10 @@ app = Flask(__name__)
 clients = {}
 server_thread = None
 streaming = False  # To track the streaming status
+flask_thread = None
 
 def start_streaming(client_socket, mode):
-    global streaming
+    global streaming, flask_thread
     streaming = True
     print(Fore.BLUE + "[ * ] Starting...")
     time.sleep(1)
@@ -33,7 +34,8 @@ def start_streaming(client_socket, mode):
     print(Fore.BLUE + "[ * ] Streaming...")
 
     # Run the Flask app in a separate thread to handle the streaming
-    threading.Thread(target=lambda: app.run(host='0.0.0.0', port=5000, use_reloader=False)).start()
+    flask_thread = threading.Thread(target=lambda: app.run(host='0.0.0.0', port=5000, use_reloader=False))
+    flask_thread.start()
 
     # Start a thread to listen for CTRL+X key combination
     threading.Thread(target=listen_for_ctrl_x).start()
@@ -54,7 +56,18 @@ def listen_for_ctrl_x():
     while streaming:
         if keyboard.is_pressed('ctrl+x'):
             print(Fore.RED + "\n[ * ] CTRL+X detected, stopping the Flask server and returning to prompt...")
-            os._exit(0)
+            stop_flask_server()
+
+def stop_flask_server():
+    global streaming, flask_thread
+    streaming = False
+    # Send a shutdown request to the Flask server
+    shutdown_func = request.environ.get('werkzeug.server.shutdown')
+    if shutdown_func:
+        shutdown_func()
+    if flask_thread:
+        flask_thread.join()
+    print(Fore.GREEN + "[ * ] Flask server stopped.")
 
 def handle_client(client_socket, addr):
     target_ip, target_port = addr
