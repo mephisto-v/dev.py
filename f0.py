@@ -132,8 +132,9 @@ def handle_client(client_socket, addr):
             if len(parts) > 1 and parts[1].startswith('--delay'):
                 try:
                     delay = int(parts[1].split('=')[1])
-                except ValueError:
+                except (IndexError, ValueError):
                     print(Fore.RED + "[ * ] Invalid delay value, starting without delay.")
+                    delay = 0
             start_streaming(client_socket, mode, delay)
             continue
 
