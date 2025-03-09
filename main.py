@@ -13,8 +13,8 @@ def home():
         with open("temp_code.py", "w") as f:
             f.write(original_code)
         
-        # Obfuscate the code using pyarmor
-        pyarmor.cli(['obfuscate', 'temp_code.py'])
+        # Obfuscate the code using pyarmor (correct method)
+        pyarmor.encrypt('temp_code.py', output_dir='dist')
         
         # Read the obfuscated code from the generated file
         with open("dist/temp_code.py", "r") as f:
