@@ -8,7 +8,7 @@ from colorama import Fore, init
 init(autoreset=True)
 
 # Global Variables
-streaming_html_location = "streaming_page.html"  # Placeholder for where the HTML page will be stored
+streaming_html_location = "stream.html"  # Placeholder for where the HTML page will be stored
 streaming_active = False
 server_socket = None
 client_socket = None
