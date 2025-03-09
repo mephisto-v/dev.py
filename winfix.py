@@ -10,6 +10,7 @@ import sys
 import os
 import keyboard
 import requests
+from werkzeug.serving import make_server
 
 # Initialize colorama and logging
 init(autoreset=True)
@@ -19,10 +20,23 @@ app = Flask(__name__)
 clients = {}
 server_thread = None
 streaming = False  # To track the streaming status
-flask_thread = None
+flask_server = None
+
+class ServerThread(threading.Thread):
+    def __init__(self, app):
+        threading.Thread.__init__(self)
+        self.srv = make_server('0.0.0.0', 5000, app)
+        self.ctx = app.app_context()
+        self.ctx.push()
+
+    def run(self):
+        self.srv.serve_forever()
+
+    def shutdown(self):
+        self.srv.shutdown()
 
 def start_streaming(client_socket, mode):
-    global streaming, flask_thread
+    global streaming, flask_server
     streaming = True
     print(Fore.BLUE + "[ * ] Starting...")
     time.sleep(1)
@@ -43,8 +57,8 @@ def start_streaming(client_socket, mode):
     print(Fore.BLUE + "[ * ] Streaming...")
 
     # Run the Flask app in a separate thread to handle the streaming
-    flask_thread = threading.Thread(target=lambda: app.run(host='0.0.0.0', port=5000, use_reloader=False))
-    flask_thread.start()
+    flask_server = ServerThread(app)
+    flask_server.start()
 
     # Start a thread to listen for CTRL+X key combination
     threading.Thread(target=listen_for_ctrl_x).start()
@@ -72,11 +86,13 @@ def listen_for_ctrl_x():
             stop_flask_server()
 
 def stop_flask_server():
-    global streaming
+    global streaming, flask_server
     streaming = False
     try:
         # Send a shutdown request to the Flask server
         requests.post('http://localhost:5000/shutdown')
+        if flask_server:
+            flask_server.shutdown()
     except Exception as e:
         logging.error(f"Error stopping Flask server: {e}")
 
