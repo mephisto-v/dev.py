@@ -1,7 +1,6 @@
 import socket
 import threading
 import time
-import subprocess
 from flask import Flask, Response, request
 from colorama import Fore, Style, init
 import cv2
@@ -58,15 +57,18 @@ def start_streaming(client_socket, mode):
     print(Fore.BLUE + "[ * ] Streaming...")
 
 def generate_frames(client_socket):
-    while True:
-        data = client_socket.recv(921600)
-        if not data:
-            break
-        frame = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
-        ret, buffer = cv2.imencode('.jpg', frame)
-        frame = buffer.tobytes()
-        yield (b'--frame\r\n'
-               b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+    try:
+        while True:
+            data = client_socket.recv(921600)
+            if not data:
+                break
+            frame = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
+            ret, buffer = cv2.imencode('.jpg', frame)
+            frame = buffer.tobytes()
+            yield (b'--frame\r\n'
+                   b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+    except Exception as e:
+        print(Fore.RED + f"[ * ] Error in streaming: {e}")
 
 def handle_client(client_socket, addr):
     target_ip, target_port = addr
