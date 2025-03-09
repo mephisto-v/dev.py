@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request
-import pyarmor
+import subprocess
+import os
 
 app = Flask(__name__)
 
@@ -13,12 +14,16 @@ def home():
         with open("temp_code.py", "w") as f:
             f.write(original_code)
         
-        # Obfuscate the code using pyarmor (correct method)
-        pyarmor.encrypt('temp_code.py', output_dir='dist')
+        # Run pyarmor command to obfuscate the code using subprocess
+        subprocess.run(["pyarmor", "obfuscate", "temp_code.py"])
         
         # Read the obfuscated code from the generated file
-        with open("dist/temp_code.py", "r") as f:
-            obfuscated_code = f.read()
+        obfuscated_code_path = "dist/temp_code.py"
+        
+        # Check if the obfuscated file exists
+        if os.path.exists(obfuscated_code_path):
+            with open(obfuscated_code_path, "r") as f:
+                obfuscated_code = f.read()
 
     return render_template("index.html", obfuscated_code=obfuscated_code)
 
