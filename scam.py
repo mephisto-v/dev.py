@@ -135,9 +135,6 @@ def main():
     print(Fore.GREEN + "[ * ] Started reverse TCP handler on 0.0.0.0:9999")
     print(Fore.GREEN + "[ * ] Listening for incoming connections...")
 
-    keyboard_thread = threading.Thread(target=listen_for_ctrl_p)
-    keyboard_thread.start()
-
     while True:
         client_socket, addr = server_socket.accept()
         print(Fore.GREEN + f"[ * ] Connection established from {addr}")
