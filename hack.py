@@ -8,6 +8,7 @@ import cv2
 import numpy as np
 import sys
 import os
+import platform
 
 init(autoreset=True)
 
@@ -52,7 +53,7 @@ def handle_client(client_socket, addr):
 
     while True:
         try:
-            command = input(Fore.MAGENTA + "metercrack > ")
+            command = input(Fore.MAGENTA + "medusa > ")
         except EOFError:
             break
 
@@ -129,7 +130,9 @@ def signal_handler(sig, frame):
 def main():
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
-    signal.signal(signal.SIGQUIT, signal_handler)
+    
+    if platform.system() != "Windows":
+        signal.signal(signal.SIGQUIT, signal_handler)
     
     # Custom signal handler for CTRL+X
     signal.signal(signal.SIGTSTP, signal_handler)
