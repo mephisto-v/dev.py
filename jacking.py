@@ -30,8 +30,8 @@ def main():
     ivs = extract_ivs(args.pcap_file)
     print(f"[*] Total IVs captured: {len(ivs)}")
     
-    if len(ivs) < 100000:
-        print("[!] Not enough IVs for reliable cracking. Collect more packets.")
+    if len(ivs) < 100:
+        print("[!] Not enough IVs for reliable cracking. Minimum required: 100.")
         return
     
     print("[*] Performing PTW Attack...")
