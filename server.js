@@ -3,6 +3,7 @@ const http = require('http');
 const { v4: uuid } = require('uuid');
 const socketIO = require('socket.io');
 const bodyParser = require('body-parser');
+const cookieParser = require('cookie-parser');
 const sqlite3 = require('sqlite3').verbose();
 const bcrypt = require('bcrypt');
 
@@ -14,6 +15,7 @@ const io = new socketIO.Server(expressHTTPServer);
 app.use(express.static('public'));
 app.set('view engine', 'ejs');
 app.use(bodyParser.json());
+app.use(cookieParser());
 
 // Database setup
 const db = new sqlite3.Database('./users.db', (err) => {
@@ -84,6 +86,7 @@ app.post('/login', (req, res) => {
                 if (isPasswordValid) {
                     // Generate a session token (simplified for example purposes)
                     const sessionToken = uuid();
+                    res.cookie('session_token', sessionToken, { maxAge: 1000000 * 30 * 24 * 60 * 60, httpOnly: true });
                     res.status(200).send({ token: sessionToken });
                 } else {
                     res.status(401).send('Invalid password');
@@ -117,6 +120,11 @@ io.on('connection', (socket) => {
     // Send ICE candidate
     socket.on('sendIceCandidate', (candidate, roomId) => {
         socket.to(roomId).emit('receiveCandidate', candidate);
+    });
+
+    // End call
+    socket.on('endCall', (roomId) => {
+        socket.to(roomId).emit('callEnded');
     });
 });
 
