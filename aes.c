@@ -1,27 +1,10 @@
-
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include "aes.h"
 
-#ifndef AES256_H
-#define AES256_H
+// Používáš funkce, ale ne jejich definici znovu
 
-#define AES_BLOCK_SIZE 16
-#define EXPANDED_KEY_SIZE 60
-
-void aes256_set_encryption_key(const uint8_t key[32], uint32_t expandedKey[60]);
-void aes256_set_decryption_key(const uint8_t key[32], uint32_t expandedKey[60]);
-void aes256_encrypt(const uint8_t in[16], uint8_t out[16], const uint32_t expandedKey[60]);
-void aes256_decrypt(const uint8_t in[16], uint8_t out[16], const uint32_t expandedKey[60]);
-
-#endif  // AES256_H
-
-#ifndef IGE256_H
-#define IGE256_H
-
-uint8_t *ige256(const uint8_t in[], uint32_t length, const uint8_t key[32], const uint8_t iv[32], uint8_t encrypt);
-
-#endif  // IGE256_H
 
 // =================== IGE256 IMPLEMENTATION ===================
 uint8_t *ige256(const uint8_t in[], uint32_t length, const uint8_t key[32], const uint8_t iv[32], uint8_t encrypt) {
